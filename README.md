@@ -3,6 +3,8 @@
 `macUnmineable` is a native SwiftUI macOS app that wraps the unMineable mining
 workflow into a wallet-first GUI for Apple Silicon.
 
+Current source release: `v0.3.0`
+
 The app lets you:
 
 1. Choose the payout coin.
@@ -33,6 +35,8 @@ Checked on **March 12, 2026** against official upstream release feeds:
 
 ## Repository layout
 
+- [VERSION](/Volumes/Mac%20Stick/Projects/macUnmineable/VERSION): tracked release metadata used by the app bundle build
+- [CHANGELOG.md](/Volumes/Mac%20Stick/Projects/macUnmineable/CHANGELOG.md): release history
 - [native/MacUnmineableNative.swift](/Volumes/Mac%20Stick/Projects/macUnmineable/native/MacUnmineableNative.swift): native app source
 - [scripts/build_native_app.sh](/Volumes/Mac%20Stick/Projects/macUnmineable/scripts/build_native_app.sh): app bundle builder
 - [scripts/install_xmrig.sh](/Volumes/Mac%20Stick/Projects/macUnmineable/scripts/install_xmrig.sh): official XMRig installer
@@ -90,6 +94,14 @@ That script:
 ## Dependencies
 
 See [DEPENDENCIES.md](/Volumes/Mac%20Stick/Projects/macUnmineable/DEPENDENCIES.md).
+
+## Versioning and releases
+
+- Release tags follow `vMAJOR.MINOR.PATCH`.
+- Bundle version metadata is tracked in [VERSION](/Volumes/Mac%20Stick/Projects/macUnmineable/VERSION).
+- User-facing release history lives in [CHANGELOG.md](/Volumes/Mac%20Stick/Projects/macUnmineable/CHANGELOG.md).
+- GitHub releases from this source repository are source-only so the project
+  does not redistribute third-party miner binaries.
 
 ## Support
 

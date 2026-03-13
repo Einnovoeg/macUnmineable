@@ -15,16 +15,30 @@ APP_BIN="${MACOS_DIR}/macUnmineable"
 PLIST_PATH="${CONTENTS_DIR}/Info.plist"
 SOURCE_FILE="${ROOT_DIR}/native/MacUnmineableNative.swift"
 RUNTIME_DIR="${RESOURCES_DIR}/runtime"
+VERSION_FILE="${ROOT_DIR}/VERSION"
 
 if [[ ! -f "${SOURCE_FILE}" ]]; then
   echo "Missing source file: ${SOURCE_FILE}" >&2
   exit 1
 fi
 
+if [[ ! -f "${VERSION_FILE}" ]]; then
+  echo "Missing version metadata: ${VERSION_FILE}" >&2
+  exit 1
+fi
+
+# shellcheck disable=SC1090
+source "${VERSION_FILE}"
+
+if [[ -z "${APP_VERSION:-}" || -z "${APP_BUILD:-}" ]]; then
+  echo "VERSION must define APP_VERSION and APP_BUILD" >&2
+  exit 1
+fi
+
 rm -rf "${APP_DIR}"
 mkdir -p "${MACOS_DIR}" "${RUNTIME_DIR}"
 
-cat > "${PLIST_PATH}" <<'EOF'
+cat > "${PLIST_PATH}" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -44,9 +58,9 @@ cat > "${PLIST_PATH}" <<'EOF'
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
-    <string>0.3.0</string>
+    <string>${APP_VERSION}</string>
     <key>CFBundleVersion</key>
-    <string>3</string>
+    <string>${APP_BUILD}</string>
     <key>LSMinimumSystemVersion</key>
     <string>13.0</string>
     <key>NSHighResolutionCapable</key>
@@ -80,4 +94,5 @@ if [[ -f "${RUNTIME_DIR}/miners/srbminer/SRBMiner-MULTI" ]]; then
 fi
 
 echo "Built native app bundle: ${APP_DIR}"
+echo "Version: ${APP_VERSION} (${APP_BUILD})"
 echo "Launch by double-clicking in Finder."

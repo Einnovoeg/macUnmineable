@@ -239,6 +239,18 @@ private let prefAppearanceModeKey = "macunmineable.pref.appearanceMode"
 private let prefPaletteKey = "macunmineable.pref.palette"
 private let supportURLString = "https://buymeacoffee.com/einnovoeg"
 
+private enum AppReleaseInfo {
+    static let shortVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "dev"
+    static let buildVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "dev"
+
+    static var displayString: String {
+        if shortVersion == buildVersion {
+            return shortVersion
+        }
+        return "\(shortVersion) (\(buildVersion))"
+    }
+}
+
 private func openExternalURL(_ rawValue: String) {
     guard let url = URL(string: rawValue) else { return }
     NSWorkspace.shared.open(url)
@@ -1512,6 +1524,9 @@ struct NativeSettingsView: View {
                 .foregroundStyle(.secondary)
 
             Section("Project") {
+                Text("Version: \(AppReleaseInfo.displayString)")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
                 Text("License: MIT")
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
@@ -2066,6 +2081,9 @@ struct InfoSheetView: View {
                 }
 
                 Section("Project") {
+                    Text("Version: \(AppReleaseInfo.displayString)")
+                        .foregroundStyle(.secondary)
+                        .font(.system(size: 12))
                     Button("Buy Me a Coffee") {
                         openExternalURL(supportURLString)
                     }
