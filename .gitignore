@@ -16,4 +16,8 @@ __pycache__/
 .vscode/
 
 miners/xmrig/xmrig
+miners/cpuminer-scash/*
+!miners/cpuminer-scash/README.md
+miners/uselethminer/*
+!miners/uselethminer/README.md
 miners/srbminer/SRBMiner-MULTI

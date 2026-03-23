@@ -4,6 +4,34 @@ All notable changes to this project are documented in this file.
 
 This project follows Semantic Versioning for release tags.
 
+## [0.4.0] - 2026-03-23
+
+### Added
+
+- Managed Apple Silicon miner integrations for `cpuminer-scash` and
+  `UselethMiner` alongside `XMRig`.
+- In-app install/update actions for the managed miners from the native Setup
+  panel.
+- Build-time embedding of managed miners into the generated `.app` bundle.
+
+### Changed
+
+- Apple Silicon algorithm routing now exposes real first-class backends instead
+  of collapsing everything onto `XMRig`.
+- The app now runs miner processes from each miner's own payload directory,
+  which is required for the bundled `UselethMiner` payload.
+- Verification now covers managed installer flows in addition to the existing
+  XMRig dry-run pool checks.
+
+### Security
+
+- `XMRig` and `cpuminer-scash` installers now verify downloaded tarballs
+  against upstream `SHA256SUMS` manifests before installation.
+- `UselethMiner` installation now requires a valid Apple distribution
+  signature and notarization result before unpacking the payload.
+- Miner process launching continues to use direct executable arguments rather
+  than shell interpolation for user input.
+
 ## [0.3.0] - 2026-03-13
 
 ### Added

@@ -24,6 +24,42 @@ Compliance notes:
 - If you distribute a build that includes the XMRig binary, you are
   responsible for complying with XMRig's GPL terms for that redistributed copy.
 
+### cpuminer-scash
+
+- Project: [scashnetwork/cpuminer-scash](https://github.com/scashnetwork/cpuminer-scash)
+- Upstream site: [scashnetwork.org](https://scashnetwork.org)
+- License source in upstream repository: `COPYING` contains `GNU General Public License Version 2`
+- Current upstream release metadata checked on **March 23, 2026**
+
+Compliance notes:
+
+- The source repository for `macUnmineable` does **not** commit a prebuilt
+  cpuminer-scash binary.
+- The installer script downloads the official upstream release and verifies the
+  tarball against the upstream `SHA256SUMS` manifest before installing it.
+- If you distribute a build that includes the cpuminer-scash binary, you are
+  responsible for complying with its GPL terms for that redistributed copy.
+
+### UselethMiner
+
+- Project: [Chainfire/UselethMiner](https://github.com/Chainfire/UselethMiner)
+- Upstream description: `Ethereum CPU miner and aggregating proxy`
+- Upstream Apple Silicon note: the README documents a `metal` GPU backend for
+  Apple Silicon
+- Current upstream release metadata checked on **March 23, 2026**
+- GitHub repository metadata does not expose an SPDX license identifier
+
+Compliance notes:
+
+- The source repository for `macUnmineable` does **not** commit or attach the
+  UselethMiner binary payload.
+- The installer script downloads the official upstream macOS package directly,
+  requires the package to pass Apple signature and notarization checks, and
+  then installs the payload locally.
+- Because upstream license metadata is not clearly exposed in the repository
+  metadata, this project does not publish the UselethMiner payload in its own
+  source releases.
+
 ## Third-party service
 
 ### unMineable

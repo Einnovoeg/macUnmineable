@@ -3,7 +3,7 @@
 `macUnmineable` is a native SwiftUI macOS app that wraps the unMineable mining
 workflow into a wallet-first GUI for Apple Silicon.
 
-Current source release: `v0.3.0`
+Current source release: `v0.4.0`
 
 The app lets you:
 
@@ -11,23 +11,27 @@ The app lets you:
 2. Paste the wallet address.
 3. Choose a supported mining algorithm.
 4. Start and stop the backend from a native macOS window.
-5. Validate miners, inspect logs, and manage runtime paths from secondary panels.
+5. Install, update, validate, and inspect managed miners from secondary panels.
 
 ## Current support
 
-The stock Apple Silicon path in this project is:
+The managed Apple Silicon backends in this project are:
 
-- `XMRig` on CPU
-- Supported algorithms: `RandomX`, `GhostRider`, `KawPow`
+- `XMRig` on CPU for `RandomX`, `GhostRider`, and `KawPow`
+- `cpuminer-scash` on CPU for `RandomX`
+- `UselethMiner` on CPU or Apple Silicon `Metal` GPU for `Ethash`
 
-The app can still accept a custom secondary miner path, but it no longer
-pretends that unsupported stock macOS backends are available.
+The app can still accept a custom secondary miner path, but the normal Apple
+Silicon flow is now based on managed backends that the app can install and
+update itself.
 
 ### Official miner matrix
 
-Checked on **March 12, 2026** against official upstream release feeds:
+Checked on **March 23, 2026** against official upstream release feeds:
 
 - `XMRig`: official `macOS arm64` release available
+- `cpuminer-scash`: official `macOS Sonoma arm64` release available
+- `UselethMiner`: official `macOS arm64` package available, with Apple Silicon Metal GPU support documented upstream
 - `SRBMiner-MULTI`: no normal macOS release asset in the latest official release
 - `nanominer`: latest official release ships Linux/Windows assets only
 - `BzMiner`: latest official release ships Linux/Windows assets only
@@ -40,6 +44,8 @@ Checked on **March 12, 2026** against official upstream release feeds:
 - [native/MacUnmineableNative.swift](/Volumes/Mac%20Stick/Projects/macUnmineable/native/MacUnmineableNative.swift): native app source
 - [scripts/build_native_app.sh](/Volumes/Mac%20Stick/Projects/macUnmineable/scripts/build_native_app.sh): app bundle builder
 - [scripts/install_xmrig.sh](/Volumes/Mac%20Stick/Projects/macUnmineable/scripts/install_xmrig.sh): official XMRig installer
+- [scripts/install_cpuminer_scash.sh](/Volumes/Mac%20Stick/Projects/macUnmineable/scripts/install_cpuminer_scash.sh): official cpuminer-scash installer
+- [scripts/install_uselethminer.sh](/Volumes/Mac%20Stick/Projects/macUnmineable/scripts/install_uselethminer.sh): official UselethMiner installer
 - [scripts/verify.sh](/Volumes/Mac%20Stick/Projects/macUnmineable/scripts/verify.sh): smoke-test verification script
 - [DEPENDENCIES.md](/Volumes/Mac%20Stick/Projects/macUnmineable/DEPENDENCIES.md): developer and runtime requirements
 - [THIRD_PARTY_NOTICES.md](/Volumes/Mac%20Stick/Projects/macUnmineable/THIRD_PARTY_NOTICES.md): third-party credits and license notes
@@ -54,23 +60,32 @@ Checked on **March 12, 2026** against official upstream release feeds:
 ./scripts/build_native_app.sh
 ```
 
+The build script downloads and embeds the managed Apple Silicon miners by
+default. To build without that step, use:
+
+```bash
+DOWNLOAD_MANAGED_MINERS=0 ./scripts/build_native_app.sh
+```
+
 2. Open the generated bundle:
 
 ```bash
 open dist/macUnmineable.app
 ```
 
-3. On first launch, let the app auto-install `XMRig` if it is missing, or open
-   `Setup` and click `Install / Update XMRig`.
+3. On first launch, let the app auto-install the managed miners if they are
+   missing, or open `Setup` and install/update them individually.
 
 ### Developers
 
-The source repository intentionally does not commit a prebuilt XMRig binary.
-Instead, use the installer script to download the official release into the
-local working tree when needed:
+The source repository intentionally does not commit prebuilt managed miner
+binaries. Instead, use the installer scripts to download the official releases
+into the local working tree when needed:
 
 ```bash
 ./scripts/install_xmrig.sh
+./scripts/install_cpuminer_scash.sh
+./scripts/install_uselethminer.sh
 ```
 
 If you already have a compatible custom miner build, point the app at it from
@@ -88,8 +103,8 @@ That script:
 
 - type-checks the SwiftUI source
 - builds the native app bundle
-- downloads XMRig into a temporary location
-- verifies dry-run startup for `RandomX`, `GhostRider`, and `KawPow`
+- exercises the managed installer scripts
+- verifies dry-run startup for the XMRig-backed algorithms that can be tested safely in automation
 
 ## Dependencies
 
@@ -102,6 +117,15 @@ See [DEPENDENCIES.md](/Volumes/Mac%20Stick/Projects/macUnmineable/DEPENDENCIES.m
 - User-facing release history lives in [CHANGELOG.md](/Volumes/Mac%20Stick/Projects/macUnmineable/CHANGELOG.md).
 - GitHub releases from this source repository are source-only so the project
   does not redistribute third-party miner binaries.
+
+## Security
+
+- Managed tarball installers verify upstream `SHA256SUMS` manifests before
+  installing `XMRig` or `cpuminer-scash`.
+- The `UselethMiner` installer requires the downloaded package to pass Apple
+  signature and notarization checks before its payload is installed.
+- The app launches miner binaries directly with fixed argument arrays rather
+  than shelling untrusted input through a shell.
 
 ## Support
 

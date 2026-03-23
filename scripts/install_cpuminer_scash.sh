@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Download the official upstream XMRig release for this Mac architecture and
+# Download the official upstream cpuminer-scash macOS arm64 release and
 # install it into the local project runtime tree (or an override path).
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-TARGET_BIN="${XMRIG_PATH:-${ROOT_DIR}/miners/xmrig/xmrig}"
+TARGET_BIN="${CPUMINER_SCASH_PATH:-${ROOT_DIR}/miners/cpuminer-scash/minerd}"
 
 DRY_RUN=0
 FORCE=0
@@ -13,12 +13,12 @@ VERSION_TAG=""
 
 usage() {
   cat <<'USAGE'
-Usage: ./scripts/install_xmrig.sh [--dry-run] [--force] [--version <tag>]
+Usage: ./scripts/install_cpuminer_scash.sh [--dry-run] [--force] [--version <tag>]
 
 Options:
   --dry-run         Resolve release asset and print what would be installed.
   --force           Overwrite existing binary without prompts.
-  --version <tag>   Install a specific Git tag (example: v6.25.0).
+  --version <tag>   Install a specific Git tag (example: v3.0.9).
 USAGE
 }
 
@@ -75,20 +75,10 @@ assert_architecture() {
   local file_info
   file_info="$(/usr/bin/file -b "$path")"
   echo "Installed architecture: ${file_info}"
-  case "$(uname -m)" in
-    arm64|aarch64)
-      [[ "$file_info" == *"arm64"* ]] || {
-        echo "Installed binary is not arm64." >&2
-        exit 1
-      }
-      ;;
-    x86_64)
-      [[ "$file_info" == *"x86_64"* ]] || {
-        echo "Installed binary is not x86_64." >&2
-        exit 1
-      }
-      ;;
-  esac
+  [[ "$file_info" == *"arm64"* ]] || {
+    echo "Installed binary is not arm64." >&2
+    exit 1
+  }
 }
 
 while [[ $# -gt 0 ]]; do
@@ -130,24 +120,21 @@ fi
 ARCH_NAME="$(uname -m)"
 case "$ARCH_NAME" in
   arm64|aarch64)
-    ARCH_TOKEN="arm64"
-    ;;
-  x86_64)
-    ARCH_TOKEN="x64"
+    ASSET_PATTERN="macos-sonoma-arm64.tgz"
     ;;
   *)
-    echo "Unsupported CPU architecture: $ARCH_NAME" >&2
+    echo "Unsupported CPU architecture for cpuminer-scash: $ARCH_NAME" >&2
     exit 1
     ;;
 esac
 
 if [[ -n "$VERSION_TAG" ]]; then
-  API_URL="https://api.github.com/repos/xmrig/xmrig/releases/tags/${VERSION_TAG}"
+  API_URL="https://api.github.com/repos/scashnetwork/cpuminer-scash/releases/tags/${VERSION_TAG}"
 else
-  API_URL="https://api.github.com/repos/xmrig/xmrig/releases/latest"
+  API_URL="https://api.github.com/repos/scashnetwork/cpuminer-scash/releases/latest"
 fi
 
-echo "Resolving XMRig release from: $API_URL"
+echo "Resolving cpuminer-scash release from: $API_URL"
 RELEASE_JSON="$(github_curl -fsSL "$API_URL")"
 
 RELEASE_TSV="$(
@@ -155,20 +142,19 @@ RELEASE_TSV="$(
   printf '%s' "$RELEASE_JSON" | python3 -c '
 import json
 import sys
-arch = sys.argv[1]
+pattern = sys.argv[1]
 release = json.load(sys.stdin)
 assets = release.get("assets", [])
 asset = None
 checksum = None
-needle = f"macos-{arch}.tar.gz"
 for candidate in assets:
     name = str(candidate.get("name", ""))
-    if needle in name:
+    if pattern in name:
         asset = candidate
     if name == "SHA256SUMS":
         checksum = candidate
 if asset is None:
-    raise SystemExit(f"No macOS {arch} release asset found")
+    raise SystemExit(f"No asset matching {pattern!r} found")
 if checksum is None:
     raise SystemExit("No SHA256SUMS asset found")
 print("\t".join([
@@ -177,7 +163,7 @@ print("\t".join([
     str(asset.get("browser_download_url", "")),
     str(checksum.get("browser_download_url", "")),
 ]))
-' "$ARCH_TOKEN"
+' "$ASSET_PATTERN"
   }
 )"
 
@@ -199,13 +185,13 @@ fi
 if [[ -x "$TARGET_BIN" && "$FORCE" != "1" ]]; then
   CURRENT_VERSION="$($TARGET_BIN --version 2>/dev/null | head -n 1 || true)"
   if [[ -n "$CURRENT_VERSION" ]]; then
-    echo "Existing XMRig found: ${CURRENT_VERSION}"
+    echo "Existing cpuminer-scash found: ${CURRENT_VERSION}"
   else
-    echo "Existing XMRig binary found at ${TARGET_BIN}"
+    echo "Existing cpuminer-scash binary found at ${TARGET_BIN}"
   fi
 fi
 
-TMP_DIR="$(mktemp -d -t macunmineable-xmrig.XXXXXX)"
+TMP_DIR="$(mktemp -d -t macunmineable-cpuminer-scash.XXXXXX)"
 cleanup() {
   rm -rf "$TMP_DIR"
 }
@@ -226,9 +212,9 @@ verify_sha256 "$ARCHIVE_PATH" "$CHECKSUM_PATH"
 echo "Extracting archive"
 tar -xzf "$ARCHIVE_PATH" -C "$EXTRACT_DIR"
 
-FOUND_BIN="$(find "$EXTRACT_DIR" -type f -name xmrig | head -n 1 || true)"
+FOUND_BIN="$(find "$EXTRACT_DIR" -type f -name minerd | head -n 1 || true)"
 if [[ -z "$FOUND_BIN" ]]; then
-  echo "Could not find xmrig binary inside archive." >&2
+  echo "Could not find minerd binary inside archive." >&2
   exit 1
 fi
 

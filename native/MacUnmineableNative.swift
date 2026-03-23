@@ -24,6 +24,8 @@ struct AlgorithmConfig: Identifiable, Hashable {
     let host: String
     let ports: [Int]
     let xmrigAlgo: String?
+    let cpuminerAlgo: String?
+    let uselethSupported: Bool
     let srbCpuAlgo: String?
     let srbGpuAlgo: String?
 }
@@ -46,6 +48,8 @@ enum HardwareChoice: String, CaseIterable, Identifiable {
 enum BackendChoice: String, CaseIterable, Identifiable {
     case auto
     case xmrig
+    case cpuminerScash
+    case uselethminer
     case srbminer
 
     var id: String { rawValue }
@@ -53,14 +57,27 @@ enum BackendChoice: String, CaseIterable, Identifiable {
         switch self {
         case .auto: return "Auto"
         case .xmrig: return "XMRig"
+        case .cpuminerScash: return "cpuminer-scash"
+        case .uselethminer: return "UselethMiner"
         case .srbminer: return "SRBMiner"
         }
     }
 }
 
-enum InstallTarget: String {
+enum InstallTarget: String, CaseIterable {
     case xmrig
+    case cpuminerScash = "cpuminer_scash"
+    case uselethminer
     case srbminer
+
+    var displayName: String {
+        switch self {
+        case .xmrig: return "XMRig"
+        case .cpuminerScash: return "cpuminer-scash"
+        case .uselethminer: return "UselethMiner"
+        case .srbminer: return "SRBMiner"
+        }
+    }
 }
 
 // MARK: - Appearance
@@ -225,12 +242,12 @@ private let fallbackCoins: [CoinOption] = [
 ]
 
 private let algorithms: [AlgorithmConfig] = [
-    .init(id: "rx", label: "RandomX", host: "rx.unmineable.com", ports: [3333, 13333, 4445], xmrigAlgo: "rx", srbCpuAlgo: "randomx", srbGpuAlgo: nil),
-    .init(id: "ghostrider", label: "GhostRider", host: "ghostrider.unmineable.com", ports: [3333, 13333], xmrigAlgo: "gr", srbCpuAlgo: "ghostrider", srbGpuAlgo: nil),
-    .init(id: "etchash", label: "Etchash", host: "etchash.unmineable.com", ports: [3333, 13333], xmrigAlgo: nil, srbCpuAlgo: nil, srbGpuAlgo: "etchash"),
-    .init(id: "ethash", label: "Ethash", host: "ethash.unmineable.com", ports: [3333, 13333], xmrigAlgo: nil, srbCpuAlgo: nil, srbGpuAlgo: "ethash"),
-    .init(id: "kp", label: "KawPow", host: "kp.unmineable.com", ports: [3333, 13333], xmrigAlgo: "kawpow", srbCpuAlgo: nil, srbGpuAlgo: "kawpow"),
-    .init(id: "autolykos", label: "Autolykos", host: "autolykos.unmineable.com", ports: [3333, 13333], xmrigAlgo: nil, srbCpuAlgo: nil, srbGpuAlgo: "autolykos2"),
+    .init(id: "rx", label: "RandomX", host: "rx.unmineable.com", ports: [3333, 13333, 4445], xmrigAlgo: "rx", cpuminerAlgo: "randomx", uselethSupported: false, srbCpuAlgo: "randomx", srbGpuAlgo: nil),
+    .init(id: "ghostrider", label: "GhostRider", host: "ghostrider.unmineable.com", ports: [3333, 13333], xmrigAlgo: "gr", cpuminerAlgo: nil, uselethSupported: false, srbCpuAlgo: "ghostrider", srbGpuAlgo: nil),
+    .init(id: "etchash", label: "Etchash", host: "etchash.unmineable.com", ports: [3333, 13333], xmrigAlgo: nil, cpuminerAlgo: nil, uselethSupported: false, srbCpuAlgo: nil, srbGpuAlgo: "etchash"),
+    .init(id: "ethash", label: "Ethash", host: "ethash.unmineable.com", ports: [3333, 13333], xmrigAlgo: nil, cpuminerAlgo: nil, uselethSupported: true, srbCpuAlgo: nil, srbGpuAlgo: "ethash"),
+    .init(id: "kp", label: "KawPow", host: "kp.unmineable.com", ports: [3333, 13333], xmrigAlgo: "kawpow", cpuminerAlgo: nil, uselethSupported: false, srbCpuAlgo: nil, srbGpuAlgo: "kawpow"),
+    .init(id: "autolykos", label: "Autolykos", host: "autolykos.unmineable.com", ports: [3333, 13333], xmrigAlgo: nil, cpuminerAlgo: nil, uselethSupported: false, srbCpuAlgo: nil, srbGpuAlgo: "autolykos2"),
 ]
 
 private let prefAutoInstallXMRigKey = "macunmineable.pref.autoInstallXmrig"
@@ -309,7 +326,8 @@ final class NativeAppModel: ObservableObject {
 
     // App startup restores persisted state, stages the runtime payload under
     // Application Support, refreshes the live availability text, and then
-    // optionally installs/validates XMRig depending on user preferences.
+    // optionally installs/validates the managed miner set depending on user
+    // preferences.
     init() {
         defaults.register(defaults: [
             prefAutoInstallXMRigKey: true,
@@ -330,7 +348,7 @@ final class NativeAppModel: ObservableObject {
         fetchCoins()
         startNetworkMonitor()
         if defaults.bool(forKey: prefAutoInstallXMRigKey) {
-            ensureXMRigInstalledIfNeeded()
+            ensureManagedMinersInstalledIfNeeded()
         } else if defaults.bool(forKey: prefAutoValidateOnLaunchKey) {
             validateMiners()
         }
@@ -344,13 +362,23 @@ final class NativeAppModel: ObservableObject {
     // backend/hardware selection so the UI never offers combinations that the
     // runtime cannot actually execute on this Mac.
     var filteredAlgorithms: [AlgorithmConfig] {
+        let xmrigReady = hasUsableXMRigBinary
+        let cpuminerReady = hasUsableCPUMinerScashBinary
+        let uselethReady = hasUsableUselethMinerBinary
         let srbminerReady = hasUsableSRBMinerBinary
         switch backend {
         case .xmrig:
             if hardware == .gpu {
                 return []
             }
-            return algorithms.filter { $0.xmrigAlgo != nil }
+            return xmrigReady ? algorithms.filter { $0.xmrigAlgo != nil } : []
+        case .cpuminerScash:
+            if hardware == .gpu {
+                return []
+            }
+            return cpuminerReady ? algorithms.filter { $0.cpuminerAlgo != nil } : []
+        case .uselethminer:
+            return uselethReady ? algorithms.filter { $0.uselethSupported } : []
         case .srbminer:
             guard srbminerReady else { return [] }
             switch hardware {
@@ -364,42 +392,92 @@ final class NativeAppModel: ObservableObject {
         case .auto:
             switch hardware {
             case .gpu:
-                return srbminerReady ? algorithms.filter { $0.srbGpuAlgo != nil } : []
+                return algorithms.filter { (uselethReady && $0.uselethSupported) || (srbminerReady && $0.srbGpuAlgo != nil) }
             case .cpu:
-                return algorithms.filter { $0.xmrigAlgo != nil || (srbminerReady && $0.srbCpuAlgo != nil) }
+                return algorithms.filter {
+                    (xmrigReady && $0.xmrigAlgo != nil)
+                        || (cpuminerReady && $0.cpuminerAlgo != nil)
+                        || (uselethReady && $0.uselethSupported)
+                        || (srbminerReady && $0.srbCpuAlgo != nil)
+                }
             case .auto:
-                return algorithms.filter { $0.xmrigAlgo != nil || (srbminerReady && ($0.srbCpuAlgo != nil || $0.srbGpuAlgo != nil)) }
+                return algorithms.filter {
+                    (xmrigReady && $0.xmrigAlgo != nil)
+                        || (cpuminerReady && $0.cpuminerAlgo != nil)
+                        || (uselethReady && $0.uselethSupported)
+                        || (srbminerReady && ($0.srbCpuAlgo != nil || $0.srbGpuAlgo != nil))
+                }
             }
         }
     }
 
+    var hasUsableXMRigBinary: Bool {
+        hasUsableBinary(target: .xmrig)
+    }
+
+    var hasUsableCPUMinerScashBinary: Bool {
+        hasUsableBinary(target: .cpuminerScash)
+    }
+
+    var hasUsableUselethMinerBinary: Bool {
+        hasUsableBinary(target: .uselethminer)
+    }
+
     var hasUsableSRBMinerBinary: Bool {
-        let path = effectiveMinerPath(target: .srbminer).path
-        return fileManager.fileExists(atPath: path) && fileManager.isExecutableFile(atPath: path)
+        hasUsableBinary(target: .srbminer)
     }
 
     var availableBackends: [BackendChoice] {
-        if hasUsableSRBMinerBinary {
-            return [.auto, .xmrig, .srbminer]
+        let ready: [BackendChoice] = [
+            hasUsableXMRigBinary ? .xmrig : nil,
+            hasUsableCPUMinerScashBinary ? .cpuminerScash : nil,
+            hasUsableUselethMinerBinary ? .uselethminer : nil,
+            hasUsableSRBMinerBinary ? .srbminer : nil,
+        ].compactMap { $0 }
+
+        if ready.count > 1 {
+            return [.auto] + ready
+        }
+        if let only = ready.first {
+            return [only]
         }
         return isAppleSilicon() ? [.xmrig] : [.auto, .xmrig]
     }
 
     var availableHardwareChoices: [HardwareChoice] {
-        if hasUsableSRBMinerBinary {
+        let gpuAvailable = hasUsableUselethMinerBinary || hasUsableSRBMinerBinary
+        let cpuAvailable = hasUsableXMRigBinary || hasUsableCPUMinerScashBinary || hasUsableUselethMinerBinary || hasUsableSRBMinerBinary
+
+        if gpuAvailable && cpuAvailable {
             return [.auto, .cpu, .gpu]
+        }
+        if gpuAvailable {
+            return [.gpu]
+        }
+        if cpuAvailable {
+            return isAppleSilicon() ? [.cpu] : [.auto, .cpu]
         }
         return isAppleSilicon() ? [.cpu] : [.auto, .cpu]
     }
 
     var appleSiliconMiningSummary: String {
+        var backends: [String] = []
+        if hasUsableXMRigBinary {
+            backends.append("XMRig for RandomX, GhostRider, and KawPow on CPU")
+        }
+        if hasUsableCPUMinerScashBinary {
+            backends.append("cpuminer-scash for RandomX on CPU")
+        }
+        if hasUsableUselethMinerBinary {
+            backends.append("UselethMiner for Ethash on CPU or Metal GPU")
+        }
         if hasUsableSRBMinerBinary {
-            return "XMRig is the default Apple Silicon path. Custom SRBMiner support is available because a local binary is present. Your payout coin, algorithm, and backend are separate settings."
+            backends.append("custom SRBMiner build for any manually supplied modes")
         }
-        if !isAppleSilicon() {
-            return "This Mac is currently running with XMRig only. Add a compatible custom miner if you want additional algorithms. Your payout coin and backend are separate settings."
+        if backends.isEmpty {
+            return "Apple Silicon mode: install the managed backends from Setup to enable XMRig, cpuminer-scash, and UselethMiner. Your payout coin, algorithm, hardware, and backend remain separate settings."
         }
-        return "Apple Silicon mode: XMRig CPU only. Supported algorithms here are RandomX, GhostRider, and KawPow. Your payout coin and backend are separate settings."
+        return "Apple Silicon managed backends: \(backends.joined(separator: " | "))."
     }
 
     var portOptions: [Int] {
@@ -572,14 +650,35 @@ final class NativeAppModel: ObservableObject {
 
         let command: [String]
         let mode: String
-        if picked == .xmrig {
+        switch picked {
+        case .xmrig:
             guard let xmrigAlgo = cfg.xmrigAlgo else {
                 warningText = "\(cfg.label) is not supported by XMRig."
                 return
             }
             command = buildXMRigCommand(cfg: cfg, xmrigAlgo: xmrigAlgo, coin: coin, wallet: wallet, worker: worker, referral: referral)
             mode = "cpu"
-        } else {
+        case .cpuminerScash:
+            guard let cpuminerAlgo = cfg.cpuminerAlgo else {
+                warningText = "\(cfg.label) is not supported by cpuminer-scash."
+                return
+            }
+            command = buildCPUMinerScashCommand(cfg: cfg, cpuminerAlgo: cpuminerAlgo, coin: coin, wallet: wallet, worker: worker, referral: referral)
+            mode = "cpu"
+        case .uselethminer:
+            guard cfg.uselethSupported else {
+                warningText = "\(cfg.label) is not supported by UselethMiner."
+                return
+            }
+            command = buildUselethCommand(cfg: cfg, coin: coin, wallet: wallet, worker: worker, referral: referral)
+            if hardware == .gpu {
+                mode = "gpu"
+            } else if hardware == .auto {
+                mode = "cpu+gpu"
+            } else {
+                mode = "cpu"
+            }
+        case .srbminer:
             do {
                 command = try buildSRBCommand(cfg: cfg, coin: coin, wallet: wallet, worker: worker, referral: referral)
                 mode = command.contains("--disable-cpu") ? "gpu" : "cpu"
@@ -587,6 +686,9 @@ final class NativeAppModel: ObservableObject {
                 warningText = error.localizedDescription
                 return
             }
+        case .auto:
+            warningText = "No backend selected."
+            return
         }
 
         guard !command.isEmpty else {
@@ -609,7 +711,7 @@ final class NativeAppModel: ObservableObject {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: executablePath)
         process.arguments = Array(command.dropFirst())
-        process.currentDirectoryURL = runtimeURL
+        process.currentDirectoryURL = URL(fileURLWithPath: executablePath).deletingLastPathComponent()
 
         let pipe = Pipe()
         process.standardOutput = pipe
@@ -682,12 +784,20 @@ final class NativeAppModel: ObservableObject {
             return
         }
 
-        guard target == .xmrig else {
+        let scriptName: String
+        switch target {
+        case .xmrig:
+            scriptName = "install_xmrig.sh"
+        case .cpuminerScash:
+            scriptName = "install_cpuminer_scash.sh"
+        case .uselethminer:
+            scriptName = "install_uselethminer.sh"
+        case .srbminer:
             installStatusText = "No official installer is available for custom secondary miners."
             warningText = "Add a compatible custom miner path manually instead of using an installer."
             return
         }
-        let scriptURL = runtimeURL.appendingPathComponent("scripts/install_xmrig.sh")
+        let scriptURL = runtimeURL.appendingPathComponent("scripts/\(scriptName)")
 
         guard fileManager.fileExists(atPath: scriptURL.path), fileManager.isExecutableFile(atPath: scriptURL.path) else {
             warningText = "Installer not found or not executable: \(scriptURL.path)"
@@ -695,7 +805,7 @@ final class NativeAppModel: ObservableObject {
         }
 
         installLogs = ""
-        installStatusText = "Installing \(target.rawValue)..."
+        installStatusText = "Installing \(target.displayName)..."
         isInstalling = true
 
         let process = Process()
@@ -722,12 +832,15 @@ final class NativeAppModel: ObservableObject {
                 self?.isInstalling = false
                 self?.installProcess = nil
                 if proc.terminationStatus == 0 {
-                    self?.installStatusText = "Install/check completed for \(target.rawValue)."
+                    self?.installStatusText = "Install/check completed for \(target.displayName)."
                 } else {
-                    self?.installStatusText = "Install failed for \(target.rawValue) (exit \(proc.terminationStatus))."
+                    self?.installStatusText = "Install failed for \(target.displayName) (exit \(proc.terminationStatus))."
                 }
                 self?.refreshMinerAvailabilityText()
                 self?.validateMiners()
+                if proc.terminationStatus == 0 && !dryRun && self?.defaults.bool(forKey: prefAutoInstallXMRigKey) == true {
+                    self?.ensureManagedMinersInstalledIfNeeded()
+                }
             }
         }
 
@@ -742,28 +855,37 @@ final class NativeAppModel: ObservableObject {
         }
     }
 
-    func ensureXMRigInstalledIfNeeded() {
-        let envOverride = ProcessInfo.processInfo.environment["XMRIG_PATH"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        if !envOverride.isEmpty {
-            refreshMinerAvailabilityText()
-            if defaults.bool(forKey: prefAutoValidateOnLaunchKey) {
-                validateMiners()
+    func ensureManagedMinersInstalledIfNeeded() {
+        let managedTargets: [InstallTarget] = [.xmrig, .cpuminerScash, .uselethminer]
+        for target in managedTargets {
+            let envName: String
+            switch target {
+            case .xmrig:
+                envName = "XMRIG_PATH"
+            case .cpuminerScash:
+                envName = "CPUMINER_SCASH_PATH"
+            case .uselethminer:
+                envName = "USELETHMINER_PATH"
+            case .srbminer:
+                envName = "SRBMINER_PATH"
             }
-            return
+
+            let envOverride = ProcessInfo.processInfo.environment[envName]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            if !envOverride.isEmpty {
+                continue
+            }
+
+            if !hasUsableBinary(target: target) {
+                installStatusText = "\(target.displayName) missing. Installing automatically..."
+                install(target: target, dryRun: false)
+                return
+            }
         }
 
-        let xmrigPath = effectiveMinerPath(target: .xmrig).path
-        let isReady = fileManager.fileExists(atPath: xmrigPath) && fileManager.isExecutableFile(atPath: xmrigPath)
-        if isReady {
-            refreshMinerAvailabilityText()
-            if defaults.bool(forKey: prefAutoValidateOnLaunchKey) {
-                validateMiners()
-            }
-            return
+        refreshMinerAvailabilityText()
+        if defaults.bool(forKey: prefAutoValidateOnLaunchKey) {
+            validateMiners()
         }
-
-        installStatusText = "XMRig missing. Installing automatically..."
-        install(target: .xmrig, dryRun: false)
     }
 
     func savePathOverride(target: InstallTarget) {
@@ -772,6 +894,8 @@ final class NativeAppModel: ObservableObject {
         switch target {
         case .xmrig:
             rawInput = xmrigPathOverride
+        case .cpuminerScash, .uselethminer:
+            rawInput = configMinerPaths[target.rawValue] ?? ""
         case .srbminer:
             rawInput = srbminerPathOverride
         }
@@ -814,6 +938,8 @@ final class NativeAppModel: ObservableObject {
         switch target {
         case .xmrig:
             xmrigPathOverride = ""
+        case .cpuminerScash, .uselethminer:
+            break
         case .srbminer:
             srbminerPathOverride = ""
         }
@@ -827,16 +953,16 @@ final class NativeAppModel: ObservableObject {
         DispatchQueue.global(qos: .utility).async {
             var reports: [String] = []
             var okCount = 0
-            let targets = ["xmrig", "srbminer"]
+            let targets = InstallTarget.allCases
 
             for target in targets {
-                let path = paths[target] ?? ""
+                let path = paths[target.rawValue] ?? ""
                 let exists = FileManager.default.fileExists(atPath: path)
                 let executable = exists && FileManager.default.isExecutableFile(atPath: path)
 
                 var lines: [String] = []
                 var ok = false
-                lines.append("\(target.uppercased()): \(executable ? "CHECK" : "MISSING")")
+                lines.append("\(target.displayName.uppercased()): \(executable ? "CHECK" : "MISSING")")
                 lines.append("  path: \(path)")
                 lines.append("  exists: \(exists) | executable: \(executable)")
 
@@ -844,17 +970,22 @@ final class NativeAppModel: ObservableObject {
                     let arch = Self.runCapture(executable: "/usr/bin/file", arguments: ["-b", path])
                     if arch.code == 0, let first = Self.firstLine(arch.output), !first.isEmpty {
                         lines.append("  architecture: \(first)")
+                        ok = true
                     }
 
-                    let version = Self.runCapture(executable: path, arguments: ["--version"])
-                    if let first = Self.firstLine(version.output), !first.isEmpty {
-                        lines.append("  version: \(first)")
-                        ok = true
-                    } else if version.code == 0 {
-                        lines.append("  warning: version output was empty.")
-                        ok = true
-                    } else {
-                        lines.append("  warning: version check exit code \(version.code).")
+                    switch target {
+                    case .uselethminer:
+                        lines.append("  version: package payload installed (version probe not exposed by binary)")
+                    default:
+                        let version = Self.runCapture(executable: path, arguments: ["--version"])
+                        if let first = Self.firstLine(version.output), !first.isEmpty {
+                            lines.append("  version: \(first)")
+                            ok = true
+                        } else if version.code == 0 {
+                            lines.append("  warning: version output was empty.")
+                        } else {
+                            lines.append("  warning: version check exit code \(version.code).")
+                        }
                     }
                 } else {
                     lines.append("  warning: binary missing or not executable.")
@@ -862,7 +993,7 @@ final class NativeAppModel: ObservableObject {
 
                 if ok {
                     okCount += 1
-                    lines[0] = "\(target.uppercased()): OK"
+                    lines[0] = "\(target.displayName.uppercased()): OK"
                 }
 
                 reports.append(lines.joined(separator: "\n"))
@@ -871,17 +1002,17 @@ final class NativeAppModel: ObservableObject {
             let fullText = reports.joined(separator: "\n\n")
             Task { @MainActor in
                 self.validationLogs = fullText
-                self.validationStatusText = "Validation complete: \(okCount)/2 OK."
+                self.validationStatusText = "Validation complete: \(okCount)/\(targets.count) OK."
             }
         }
     }
 
-    func bundledBinaryStatus() -> (xmrig: Bool, srbminer: Bool) {
-        let xmrigPath = defaultMinerPath(target: .xmrig).path
-        let srbPath = defaultMinerPath(target: .srbminer).path
-        let xmrig = fileManager.fileExists(atPath: xmrigPath) && fileManager.isExecutableFile(atPath: xmrigPath)
-        let srb = fileManager.fileExists(atPath: srbPath) && fileManager.isExecutableFile(atPath: srbPath)
-        return (xmrig, srb)
+    func bundledBinaryStatus() -> [InstallTarget: Bool] {
+        Dictionary(uniqueKeysWithValues: InstallTarget.allCases.map { target in
+            let path = defaultMinerPath(target: target).path
+            let usable = fileManager.fileExists(atPath: path) && fileManager.isExecutableFile(atPath: path)
+            return (target, usable)
+        })
     }
 
     private func normalizeSelections(showWarning: Bool) {
@@ -890,7 +1021,7 @@ final class NativeAppModel: ObservableObject {
         if !availableBackends.contains(backend) {
             backend = availableBackends.first ?? .xmrig
             if showWarning {
-                warningText = "This Mac is currently using XMRig-only mode because no compatible secondary miner is installed."
+                warningText = "The selected backend is not currently installed. Setup has been normalized to the nearest working Apple Silicon backend."
             }
         }
 
@@ -905,6 +1036,12 @@ final class NativeAppModel: ObservableObject {
             hardware = .cpu
             if showWarning {
                 warningText = "XMRig is CPU-only in this launcher. Hardware switched to CPU."
+            }
+        }
+        if backend == .cpuminerScash, hardware == .gpu {
+            hardware = .cpu
+            if showWarning {
+                warningText = "cpuminer-scash is CPU-only. Hardware switched to CPU."
             }
         }
     }
@@ -948,6 +1085,11 @@ final class NativeAppModel: ObservableObject {
         #endif
     }
 
+    private func threadCountFromPercent() -> Int {
+        let cpuCount = max(1, ProcessInfo.processInfo.processorCount)
+        return max(1, Int(round(Double(cpuCount) * (threadsPercent / 100.0))))
+    }
+
     private func buildXMRigCommand(
         cfg: AlgorithmConfig,
         xmrigAlgo: String,
@@ -972,6 +1114,58 @@ final class NativeAppModel: ObservableObject {
         ]
         let hint = max(1, min(100, Int(threadsPercent)))
         cmd += ["--cpu-max-threads-hint", String(hint)]
+        return cmd
+    }
+
+    private func buildCPUMinerScashCommand(
+        cfg: AlgorithmConfig,
+        cpuminerAlgo: String,
+        coin: String,
+        wallet: String,
+        worker: String,
+        referral: String
+    ) -> [String] {
+        var user = "\(coin):\(wallet).\(worker)"
+        if !referral.isEmpty {
+            user += "#\(referral)"
+        }
+        return [
+            effectiveMinerPath(target: .cpuminerScash).path,
+            "--algo=\(cpuminerAlgo)",
+            "--url=stratum+tcp://\(cfg.host):\(selectedPort)",
+            "--user=\(user)",
+            "--pass=x",
+            "--threads=\(threadCountFromPercent())",
+            "--largepages",
+            "--no-affinity",
+        ]
+    }
+
+    private func buildUselethCommand(
+        cfg: AlgorithmConfig,
+        coin: String,
+        wallet: String,
+        worker: String,
+        referral: String
+    ) -> [String] {
+        var user = "\(coin):\(wallet).\(worker)"
+        if !referral.isEmpty {
+            user += "#\(referral)"
+        }
+
+        let stratum = "\(user):x@\(cfg.host):\(selectedPort)"
+        var cmd = [
+            effectiveMinerPath(target: .uselethminer).path,
+            stratum,
+            "-t", String(max(1, threadCountFromPercent())),
+        ]
+
+        if hardware == .gpu {
+            cmd += ["--flavor", "none", "--flavor-gpu", "metal"]
+        } else if hardware == .auto {
+            cmd += ["--flavor-gpu", "metal"]
+        }
+
         return cmd
     }
 
@@ -1019,9 +1213,7 @@ final class NativeAppModel: ObservableObject {
         }
         if disableGPU {
             cmd.append("--disable-gpu")
-            let cpuCount = ProcessInfo.processInfo.processorCount
-            let threadCount = max(1, Int(round(Double(cpuCount) * (threadsPercent / 100.0))))
-            cmd += ["--cpu-threads", String(threadCount)]
+            cmd += ["--cpu-threads", String(threadCountFromPercent())]
         }
         return cmd
     }
@@ -1038,6 +1230,25 @@ final class NativeAppModel: ObservableObject {
                 throw NSError(domain: "macunmineable", code: 3, userInfo: [NSLocalizedDescriptionKey: "\(cfg.label) is not supported by XMRig."])
             }
             return .xmrig
+        case .cpuminerScash:
+            guard available["cpuminer_scash"] == true else {
+                throw NSError(domain: "macunmineable", code: 10, userInfo: [NSLocalizedDescriptionKey: "cpuminer-scash binary is not available."])
+            }
+            guard cfg.cpuminerAlgo != nil else {
+                throw NSError(domain: "macunmineable", code: 11, userInfo: [NSLocalizedDescriptionKey: "\(cfg.label) is not supported by cpuminer-scash."])
+            }
+            if hardware == .gpu {
+                throw NSError(domain: "macunmineable", code: 12, userInfo: [NSLocalizedDescriptionKey: "cpuminer-scash is CPU-only."])
+            }
+            return .cpuminerScash
+        case .uselethminer:
+            guard available["uselethminer"] == true else {
+                throw NSError(domain: "macunmineable", code: 13, userInfo: [NSLocalizedDescriptionKey: "UselethMiner payload is not available."])
+            }
+            guard cfg.uselethSupported else {
+                throw NSError(domain: "macunmineable", code: 14, userInfo: [NSLocalizedDescriptionKey: "\(cfg.label) is not supported by UselethMiner."])
+            }
+            return .uselethminer
         case .srbminer:
             guard available["srbminer"] == true else {
                 throw NSError(domain: "macunmineable", code: 4, userInfo: [NSLocalizedDescriptionKey: "SRBMiner binary is not available."])
@@ -1051,6 +1262,9 @@ final class NativeAppModel: ObservableObject {
             return .srbminer
         case .auto:
             if hardware == .gpu {
+                if available["uselethminer"] == true, cfg.uselethSupported {
+                    return .uselethminer
+                }
                 if available["srbminer"] == true, cfg.srbGpuAlgo != nil {
                     return .srbminer
                 }
@@ -1060,17 +1274,29 @@ final class NativeAppModel: ObservableObject {
                 if available["xmrig"] == true, cfg.xmrigAlgo != nil {
                     return .xmrig
                 }
+                if available["cpuminer_scash"] == true, cfg.cpuminerAlgo != nil {
+                    return .cpuminerScash
+                }
+                if available["uselethminer"] == true, cfg.uselethSupported {
+                    return .uselethminer
+                }
                 if available["srbminer"] == true, cfg.srbCpuAlgo != nil {
                     return .srbminer
                 }
                 throw NSError(domain: "macunmineable", code: 8, userInfo: [NSLocalizedDescriptionKey: "No CPU backend available for \(cfg.label)."])
             }
 
+            if available["uselethminer"] == true, cfg.uselethSupported {
+                return .uselethminer
+            }
             if available["srbminer"] == true, cfg.srbGpuAlgo != nil {
                 return .srbminer
             }
             if available["xmrig"] == true, cfg.xmrigAlgo != nil {
                 return .xmrig
+            }
+            if available["cpuminer_scash"] == true, cfg.cpuminerAlgo != nil {
+                return .cpuminerScash
             }
             if available["srbminer"] == true, cfg.srbCpuAlgo != nil {
                 return .srbminer
@@ -1083,19 +1309,23 @@ final class NativeAppModel: ObservableObject {
         let paths = effectiveMinerPaths()
         return [
             "xmrig": fileManager.fileExists(atPath: paths["xmrig"] ?? "") && fileManager.isExecutableFile(atPath: paths["xmrig"] ?? ""),
+            "cpuminer_scash": fileManager.fileExists(atPath: paths["cpuminer_scash"] ?? "") && fileManager.isExecutableFile(atPath: paths["cpuminer_scash"] ?? ""),
+            "uselethminer": fileManager.fileExists(atPath: paths["uselethminer"] ?? "") && fileManager.isExecutableFile(atPath: paths["uselethminer"] ?? ""),
             "srbminer": fileManager.fileExists(atPath: paths["srbminer"] ?? "") && fileManager.isExecutableFile(atPath: paths["srbminer"] ?? ""),
         ]
     }
 
     private func refreshMinerAvailabilityText() {
         let available = minerAvailable()
+        var parts = [
+            "xmrig: \(available["xmrig"] == true ? "ready" : "missing")",
+            "cpuminer-scash: \(available["cpuminer_scash"] == true ? "ready" : "missing")",
+            "uselethminer: \(available["uselethminer"] == true ? "ready" : "missing")",
+        ]
         if available["srbminer"] == true {
-            minerText = "xmrig: \(available["xmrig"] == true ? "ready" : "missing") | custom srbminer: ready"
-        } else if isAppleSilicon() {
-            minerText = "xmrig: \(available["xmrig"] == true ? "ready" : "missing") | apple-silicon mode: CPU/XMRig only"
-        } else {
-            minerText = "xmrig: \(available["xmrig"] == true ? "ready" : "missing") | srbminer: not installed"
+            parts.append("custom srbminer: ready")
         }
+        minerText = parts.joined(separator: " | ")
     }
 
     private func startNetworkMonitor() {
@@ -1112,12 +1342,29 @@ final class NativeAppModel: ObservableObject {
     private func effectiveMinerPaths() -> [String: String] {
         [
             "xmrig": effectiveMinerPath(target: .xmrig).path,
+            "cpuminer_scash": effectiveMinerPath(target: .cpuminerScash).path,
+            "uselethminer": effectiveMinerPath(target: .uselethminer).path,
             "srbminer": effectiveMinerPath(target: .srbminer).path,
         ]
     }
 
+    private func hasUsableBinary(target: InstallTarget) -> Bool {
+        let path = effectiveMinerPath(target: target).path
+        return fileManager.fileExists(atPath: path) && fileManager.isExecutableFile(atPath: path)
+    }
+
     private func effectiveMinerPath(target: InstallTarget) -> URL {
-        let envName = target == .xmrig ? "XMRIG_PATH" : "SRBMINER_PATH"
+        let envName: String
+        switch target {
+        case .xmrig:
+            envName = "XMRIG_PATH"
+        case .cpuminerScash:
+            envName = "CPUMINER_SCASH_PATH"
+        case .uselethminer:
+            envName = "USELETHMINER_PATH"
+        case .srbminer:
+            envName = "SRBMINER_PATH"
+        }
         if let envValue = ProcessInfo.processInfo.environment[envName], !envValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             return URL(fileURLWithPath: envValue)
         }
@@ -1131,6 +1378,10 @@ final class NativeAppModel: ObservableObject {
         switch target {
         case .xmrig:
             return runtimeURL.appendingPathComponent("miners/xmrig/xmrig")
+        case .cpuminerScash:
+            return runtimeURL.appendingPathComponent("miners/cpuminer-scash/minerd")
+        case .uselethminer:
+            return runtimeURL.appendingPathComponent("miners/uselethminer/uselethminer")
         case .srbminer:
             return runtimeURL.appendingPathComponent("miners/srbminer/SRBMiner-MULTI")
         }
@@ -1221,7 +1472,11 @@ final class NativeAppModel: ObservableObject {
         syncRuntimeFolder(named: "scripts", from: bundleRuntime)
         syncRuntimeFolder(named: "miners", from: bundleRuntime)
         ensureExecutableBit(at: runtimeURL.appendingPathComponent("scripts/install_xmrig.sh").path)
+        ensureExecutableBit(at: runtimeURL.appendingPathComponent("scripts/install_cpuminer_scash.sh").path)
+        ensureExecutableBit(at: runtimeURL.appendingPathComponent("scripts/install_uselethminer.sh").path)
         ensureExecutableBit(at: runtimeURL.appendingPathComponent("miners/xmrig/xmrig").path)
+        ensureExecutableBit(at: runtimeURL.appendingPathComponent("miners/cpuminer-scash/minerd").path)
+        ensureExecutableBit(at: runtimeURL.appendingPathComponent("miners/uselethminer/uselethminer").path)
         ensureExecutableBit(at: runtimeURL.appendingPathComponent("miners/srbminer/SRBMiner-MULTI").path)
     }
 
@@ -1517,9 +1772,9 @@ struct NativeSettingsView: View {
                     .foregroundStyle(.secondary)
             }
 
-            Toggle("Auto-install XMRig if missing", isOn: $autoInstallXMRig)
+            Toggle("Auto-install managed miners if missing", isOn: $autoInstallXMRig)
             Toggle("Validate binaries on launch", isOn: $autoValidateOnLaunch)
-            Text("SRBMiner macOS binaries may be unavailable in official releases.")
+            Text("Managed Apple Silicon installers cover XMRig, cpuminer-scash, and UselethMiner. SRBMiner macOS binaries may still be unavailable in official releases.")
                 .font(.system(size: 12))
                 .foregroundStyle(.secondary)
 
@@ -1563,7 +1818,7 @@ struct MenuBarControlsView: View {
                 NSApp.activate(ignoringOtherApps: true)
             }
             Divider()
-            Toggle("Auto-install XMRig", isOn: $autoInstallXMRig)
+            Toggle("Auto-install managed miners", isOn: $autoInstallXMRig)
             Toggle("Validate on launch", isOn: $autoValidateOnLaunch)
             Divider()
             Button("Buy Me a Coffee") {
@@ -1829,10 +2084,12 @@ struct SetupSheetView: View {
                 }
 
                 Section("Official Miner Matrix") {
-                    Text("Checked against official upstream releases on March 12, 2026.")
+                    Text("Checked against official upstream releases on March 23, 2026.")
                         .foregroundStyle(.secondary)
                         .font(.system(size: 12))
                     Text("XMRig: macOS arm64 release available")
+                    Text("cpuminer-scash: macOS Sonoma arm64 release available")
+                    Text("UselethMiner: macOS arm64 package available, Apple Silicon Metal GPU backend documented upstream")
                     Text("SRBMiner-MULTI: no normal macOS release asset")
                     Text("nanominer: latest release is Linux/Windows only")
                     Text("BzMiner: latest release is Linux/Windows only")
@@ -1840,11 +2097,13 @@ struct SetupSheetView: View {
                 }
 
                 Section("Bundled Binaries") {
-                    Text("XMRig bundled: \(bundled.xmrig ? "Yes" : "No")")
+                    Text("XMRig bundled: \(bundled[.xmrig] == true ? "Yes" : "No")")
+                    Text("cpuminer-scash bundled: \(bundled[.cpuminerScash] == true ? "Yes" : "No")")
+                    Text("UselethMiner bundled: \(bundled[.uselethminer] == true ? "Yes" : "No")")
                     Text("Custom SRBMiner present: \(model.hasUsableSRBMinerBinary ? "Yes" : "No")")
                 }
 
-                Section("Installers") {
+                Section("Managed Miners") {
                     HStack(spacing: 10) {
                         Button("Install / Update XMRig") {
                             model.install(target: .xmrig, dryRun: false)
@@ -1858,6 +2117,37 @@ struct SetupSheetView: View {
                         .buttonStyle(.bordered)
                         .disabled(model.isInstalling || model.isMining)
                     }
+
+                    HStack(spacing: 10) {
+                        Button("Install / Update cpuminer-scash") {
+                            model.install(target: .cpuminerScash, dryRun: false)
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(model.isInstalling || model.isMining)
+
+                        Button("Check cpuminer-scash Release") {
+                            model.install(target: .cpuminerScash, dryRun: true)
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(model.isInstalling || model.isMining)
+                    }
+
+                    HStack(spacing: 10) {
+                        Button("Install / Update UselethMiner") {
+                            model.install(target: .uselethminer, dryRun: false)
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(model.isInstalling || model.isMining)
+
+                        Button("Check UselethMiner Release") {
+                            model.install(target: .uselethminer, dryRun: true)
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(model.isInstalling || model.isMining)
+                    }
+                    Text("Managed miner downloads are verified before install. Tarball-based miners use upstream SHA256 manifests, and UselethMiner packages must pass Apple signature and notarization checks.")
+                        .foregroundStyle(.secondary)
+                        .font(.system(size: 12))
                 }
 
                 Section("Custom Miner Paths") {
@@ -1874,6 +2164,9 @@ struct SetupSheetView: View {
                         onClear: { model.clearPathOverride(target: .srbminer) }
                     )
                     Text("Only add SRBMiner here if you already have a macOS-compatible custom build. The app no longer surfaces it as a normal Apple Silicon installer target.")
+                        .foregroundStyle(.secondary)
+                        .font(.system(size: 12))
+                    Text("Built-in Apple Silicon miners are managed by the app and do not require manual paths.")
                         .foregroundStyle(.secondary)
                         .font(.system(size: 12))
                 }
