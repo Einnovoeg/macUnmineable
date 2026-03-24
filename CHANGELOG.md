@@ -4,6 +4,15 @@ All notable changes to this project are documented in this file.
 
 This project follows Semantic Versioning for release tags.
 
+## [0.4.3] - 2026-03-24
+
+### Changed
+
+- Removed the orphaned `install_uselethminer.sh` helper and the stale
+  `miners/uselethminer` placeholder from the repository now that
+  `UselethMiner` is no longer treated as a managed bundled backend.
+- Cleaned `.gitignore` to match the corrected backend model.
+
 ## [0.4.2] - 2026-03-24
 
 ### Changed
