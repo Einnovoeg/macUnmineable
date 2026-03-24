@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+umask 077
 
 # Download the official upstream XMRig release for this Mac architecture and
 # install it into the local project runtime tree (or an override path).
@@ -22,12 +23,28 @@ Options:
 USAGE
 }
 
+assert_safe_target_bin() {
+  local path="$1"
+  [[ "$path" = /* ]] || {
+    echo "Target path must be absolute." >&2
+    exit 1
+  }
+  [[ "$(basename "$path")" == "xmrig" ]] || {
+    echo "Target binary name must be xmrig." >&2
+    exit 1
+  }
+  [[ "$path" != "/" ]] || {
+    echo "Refusing to use / as a target path." >&2
+    exit 1
+  }
+}
+
 primary_interface() {
   route get default 2>/dev/null | awk '/interface: / { print $2; exit }'
 }
 
 github_curl() {
-  if curl "$@"; then
+  if curl --proto '=https' --tlsv1.2 "$@"; then
     return 0
   fi
   local status=$?
@@ -35,7 +52,7 @@ github_curl() {
   fallback_if="${MACUNMINEABLE_CURL_INTERFACE:-$(primary_interface)}"
   if [[ -n "$fallback_if" ]]; then
     echo "Retrying curl via interface: ${fallback_if}" >&2
-    curl --interface "$fallback_if" "$@"
+    curl --proto '=https' --tlsv1.2 --interface "$fallback_if" "$@"
     return $?
   fi
   return "$status"
@@ -121,6 +138,8 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+assert_safe_target_bin "$TARGET_BIN"
+
 OS_NAME="$(uname -s)"
 if [[ "$OS_NAME" != "Darwin" ]]; then
   echo "This installer currently supports macOS only (detected: $OS_NAME)." >&2
@@ -203,6 +222,8 @@ if [[ -x "$TARGET_BIN" && "$FORCE" != "1" ]]; then
   else
     echo "Existing XMRig binary found at ${TARGET_BIN}"
   fi
+  echo "Refusing to overwrite existing XMRig without --force." >&2
+  exit 1
 fi
 
 TMP_DIR="$(mktemp -d -t macunmineable-xmrig.XXXXXX)"

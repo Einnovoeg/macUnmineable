@@ -3,7 +3,7 @@
 `macUnmineable` is a native SwiftUI macOS app that wraps the unMineable mining
 workflow into a wallet-first GUI for Apple Silicon.
 
-Current source release: `v0.4.0`
+Current source release: `v0.4.1`
 
 The app lets you:
 
@@ -39,16 +39,16 @@ Checked on **March 23, 2026** against official upstream release feeds:
 
 ## Repository layout
 
-- [VERSION](/Volumes/Mac%20Stick/Projects/macUnmineable/VERSION): tracked release metadata used by the app bundle build
-- [CHANGELOG.md](/Volumes/Mac%20Stick/Projects/macUnmineable/CHANGELOG.md): release history
-- [native/MacUnmineableNative.swift](/Volumes/Mac%20Stick/Projects/macUnmineable/native/MacUnmineableNative.swift): native app source
-- [scripts/build_native_app.sh](/Volumes/Mac%20Stick/Projects/macUnmineable/scripts/build_native_app.sh): app bundle builder
-- [scripts/install_xmrig.sh](/Volumes/Mac%20Stick/Projects/macUnmineable/scripts/install_xmrig.sh): official XMRig installer
-- [scripts/install_cpuminer_scash.sh](/Volumes/Mac%20Stick/Projects/macUnmineable/scripts/install_cpuminer_scash.sh): official cpuminer-scash installer
-- [scripts/install_uselethminer.sh](/Volumes/Mac%20Stick/Projects/macUnmineable/scripts/install_uselethminer.sh): official UselethMiner installer
-- [scripts/verify.sh](/Volumes/Mac%20Stick/Projects/macUnmineable/scripts/verify.sh): smoke-test verification script
-- [DEPENDENCIES.md](/Volumes/Mac%20Stick/Projects/macUnmineable/DEPENDENCIES.md): developer and runtime requirements
-- [THIRD_PARTY_NOTICES.md](/Volumes/Mac%20Stick/Projects/macUnmineable/THIRD_PARTY_NOTICES.md): third-party credits and license notes
+- [VERSION](VERSION): tracked release metadata used by the app bundle build
+- [CHANGELOG.md](CHANGELOG.md): release history
+- [native/MacUnmineableNative.swift](native/MacUnmineableNative.swift): native app source
+- [scripts/build_native_app.sh](scripts/build_native_app.sh): app bundle builder
+- [scripts/install_xmrig.sh](scripts/install_xmrig.sh): official XMRig installer
+- [scripts/install_cpuminer_scash.sh](scripts/install_cpuminer_scash.sh): official cpuminer-scash installer
+- [scripts/install_uselethminer.sh](scripts/install_uselethminer.sh): official UselethMiner installer
+- [scripts/verify.sh](scripts/verify.sh): smoke-test verification script
+- [DEPENDENCIES.md](DEPENDENCIES.md): developer and runtime requirements
+- [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md): third-party credits and license notes
 
 ## Install and run
 
@@ -108,13 +108,13 @@ That script:
 
 ## Dependencies
 
-See [DEPENDENCIES.md](/Volumes/Mac%20Stick/Projects/macUnmineable/DEPENDENCIES.md).
+See [DEPENDENCIES.md](DEPENDENCIES.md).
 
 ## Versioning and releases
 
 - Release tags follow `vMAJOR.MINOR.PATCH`.
-- Bundle version metadata is tracked in [VERSION](/Volumes/Mac%20Stick/Projects/macUnmineable/VERSION).
-- User-facing release history lives in [CHANGELOG.md](/Volumes/Mac%20Stick/Projects/macUnmineable/CHANGELOG.md).
+- Bundle version metadata is tracked in [VERSION](VERSION).
+- User-facing release history lives in [CHANGELOG.md](CHANGELOG.md).
 - GitHub releases from this source repository are source-only so the project
   does not redistribute third-party miner binaries.
 
@@ -124,6 +124,13 @@ See [DEPENDENCIES.md](/Volumes/Mac%20Stick/Projects/macUnmineable/DEPENDENCIES.m
   installing `XMRig` or `cpuminer-scash`.
 - The `UselethMiner` installer requires the downloaded package to pass Apple
   signature and notarization checks before its payload is installed.
+- The app executes installer scripts from the read-only app bundle instead of a
+  writable `Application Support` copy.
+- Managed installer targets must be explicit absolute paths, and the app now
+  validates custom miner overrides as native macOS Mach-O executables before
+  saving them.
+- Local config and runtime directories are written with tighter user-only
+  permissions.
 - The app launches miner binaries directly with fixed argument arrays rather
   than shelling untrusted input through a shell.
 
@@ -133,10 +140,10 @@ See [DEPENDENCIES.md](/Volumes/Mac%20Stick/Projects/macUnmineable/DEPENDENCIES.m
 
 ## License
 
-This project is licensed under the MIT License. See [LICENSE](/Volumes/Mac%20Stick/Projects/macUnmineable/LICENSE).
+This project is licensed under the MIT License. See [LICENSE](LICENSE).
 
 Third-party software remains under its own license terms. See
-[THIRD_PARTY_NOTICES.md](/Volumes/Mac%20Stick/Projects/macUnmineable/THIRD_PARTY_NOTICES.md).
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 ## Credits
 

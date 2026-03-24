@@ -269,7 +269,14 @@ private enum AppReleaseInfo {
 }
 
 private func openExternalURL(_ rawValue: String) {
-    guard let url = URL(string: rawValue) else { return }
+    guard let components = URLComponents(string: rawValue),
+          components.scheme?.lowercased() == "https",
+          let host = components.host,
+          !host.isEmpty,
+          let url = components.url
+    else {
+        return
+    }
     NSWorkspace.shared.open(url)
 }
 
@@ -337,7 +344,7 @@ final class NativeAppModel: ObservableObject {
         appSupportURL = supportRoot.appendingPathComponent("macUnmineable", isDirectory: true)
         runtimeURL = appSupportURL.appendingPathComponent("runtime", isDirectory: true)
         configURL = appSupportURL.appendingPathComponent("local_config.json", isDirectory: false)
-        systemText = "\(ProcessInfo.processInfo.hostName) | \(ProcessInfo.processInfo.operatingSystemVersionString)"
+        systemText = "\(ProcessInfo.processInfo.operatingSystemVersionString) | \(isAppleSilicon() ? "Apple Silicon" : "Intel")"
 
         bootstrapRuntime()
         loadConfig()
@@ -784,20 +791,15 @@ final class NativeAppModel: ObservableObject {
             return
         }
 
-        let scriptName: String
-        switch target {
-        case .xmrig:
-            scriptName = "install_xmrig.sh"
-        case .cpuminerScash:
-            scriptName = "install_cpuminer_scash.sh"
-        case .uselethminer:
-            scriptName = "install_uselethminer.sh"
-        case .srbminer:
+        if target == .srbminer {
             installStatusText = "No official installer is available for custom secondary miners."
             warningText = "Add a compatible custom miner path manually instead of using an installer."
             return
         }
-        let scriptURL = runtimeURL.appendingPathComponent("scripts/\(scriptName)")
+        guard let scriptURL = bundledInstallerScriptURL(target: target) else {
+            warningText = "Installer is missing from the app bundle for \(target.displayName)."
+            return
+        }
 
         guard fileManager.fileExists(atPath: scriptURL.path), fileManager.isExecutableFile(atPath: scriptURL.path) else {
             warningText = "Installer not found or not executable: \(scriptURL.path)"
@@ -810,7 +812,8 @@ final class NativeAppModel: ObservableObject {
 
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/bash")
-        process.arguments = [scriptURL.path] + (dryRun ? ["--dry-run"] : [])
+        process.arguments = [scriptURL.path] + (dryRun ? ["--dry-run"] : ["--force"])
+        process.environment = installerEnvironment(for: target)
         process.currentDirectoryURL = runtimeURL
 
         let pipe = Pipe()
@@ -906,27 +909,15 @@ final class NativeAppModel: ObservableObject {
             return
         }
 
-        let expanded = NSString(string: trimmed).expandingTildeInPath
-        let pathURL = URL(fileURLWithPath: expanded)
-        guard fileManager.fileExists(atPath: pathURL.path) else {
-            warningText = "Path does not exist: \(pathURL.path)"
+        let resolvedURL: URL
+        do {
+            resolvedURL = try validateCustomBinaryPath(rawInput: trimmed, target: target)
+        } catch {
+            warningText = error.localizedDescription
             return
         }
 
-        if !fileManager.isExecutableFile(atPath: pathURL.path) {
-            do {
-                try makeExecutable(path: pathURL.path)
-            } catch {
-                warningText = "Could not set executable bit: \(error.localizedDescription)"
-                return
-            }
-        }
-        guard fileManager.isExecutableFile(atPath: pathURL.path) else {
-            warningText = "File is not executable: \(pathURL.path)"
-            return
-        }
-
-        configMinerPaths[target.rawValue] = pathURL.path
+        configMinerPaths[target.rawValue] = resolvedURL.path
         saveConfig()
         refreshMinerAvailabilityText()
         validateMiners()
@@ -1452,13 +1443,15 @@ final class NativeAppModel: ObservableObject {
         }
     }
 
-    // Runtime resources are copied into Application Support so the bundled app
-    // can update installer scripts or miner binaries without modifying the app
-    // bundle itself. That keeps the bundle read-only and user updates mutable.
+    // Miner payloads are copied into Application Support so the bundled app can
+    // update executables without modifying the app bundle itself. Installer
+    // scripts stay in the bundle and are executed from there.
     private func bootstrapRuntime() {
         do {
             try fileManager.createDirectory(at: appSupportURL, withIntermediateDirectories: true)
             try fileManager.createDirectory(at: runtimeURL, withIntermediateDirectories: true)
+            try? fileManager.setAttributes([.posixPermissions: NSNumber(value: 0o700)], ofItemAtPath: appSupportURL.path)
+            try? fileManager.setAttributes([.posixPermissions: NSNumber(value: 0o700)], ofItemAtPath: runtimeURL.path)
         } catch {
             warningText = "Failed creating app support directories: \(error.localizedDescription)"
             return
@@ -1469,11 +1462,7 @@ final class NativeAppModel: ObservableObject {
             return
         }
 
-        syncRuntimeFolder(named: "scripts", from: bundleRuntime)
         syncRuntimeFolder(named: "miners", from: bundleRuntime)
-        ensureExecutableBit(at: runtimeURL.appendingPathComponent("scripts/install_xmrig.sh").path)
-        ensureExecutableBit(at: runtimeURL.appendingPathComponent("scripts/install_cpuminer_scash.sh").path)
-        ensureExecutableBit(at: runtimeURL.appendingPathComponent("scripts/install_uselethminer.sh").path)
         ensureExecutableBit(at: runtimeURL.appendingPathComponent("miners/xmrig/xmrig").path)
         ensureExecutableBit(at: runtimeURL.appendingPathComponent("miners/cpuminer-scash/minerd").path)
         ensureExecutableBit(at: runtimeURL.appendingPathComponent("miners/uselethminer/uselethminer").path)
@@ -1530,9 +1519,15 @@ final class NativeAppModel: ObservableObject {
             return
         }
 
-        configMinerPaths = minerPaths
-        xmrigPathOverride = minerPaths["xmrig"] ?? ""
-        srbminerPathOverride = minerPaths["srbminer"] ?? ""
+        let allowedKeys = Set(InstallTarget.allCases.map(\.rawValue))
+        configMinerPaths = minerPaths.reduce(into: [String: String]()) { output, item in
+            let key = item.key
+            let value = item.value.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard allowedKeys.contains(key), !value.isEmpty else { return }
+            output[key] = value
+        }
+        xmrigPathOverride = configMinerPaths["xmrig"] ?? ""
+        srbminerPathOverride = configMinerPaths["srbminer"] ?? ""
     }
 
     private func saveConfig() {
@@ -1543,6 +1538,7 @@ final class NativeAppModel: ObservableObject {
         do {
             let data = try JSONSerialization.data(withJSONObject: payload, options: [.prettyPrinted, .sortedKeys])
             try data.write(to: configURL, options: [.atomic])
+            try? fileManager.setAttributes([.posixPermissions: NSNumber(value: 0o600)], ofItemAtPath: configURL.path)
         } catch {
             warningText = "Failed saving config: \(error.localizedDescription)"
         }
@@ -1602,6 +1598,80 @@ final class NativeAppModel: ObservableObject {
         }
     }
 
+    // Installer scripts stay inside the read-only app bundle. The mutable
+    // runtime directory only stores downloaded miner payloads and local config.
+    private func bundledInstallerScriptURL(target: InstallTarget) -> URL? {
+        let scriptName: String
+        switch target {
+        case .xmrig:
+            scriptName = "install_xmrig.sh"
+        case .cpuminerScash:
+            scriptName = "install_cpuminer_scash.sh"
+        case .uselethminer:
+            scriptName = "install_uselethminer.sh"
+        case .srbminer:
+            return nil
+        }
+
+        if let bundled = Bundle.main.resourceURL?.appendingPathComponent("runtime/scripts/\(scriptName)"),
+           fileManager.fileExists(atPath: bundled.path)
+        {
+            return bundled
+        }
+        return nil
+    }
+
+    private func installerEnvironment(for target: InstallTarget) -> [String: String] {
+        var environment = ProcessInfo.processInfo.environment
+        environment[installerEnvironmentName(for: target)] = defaultMinerPath(target: target).path
+        environment["MACUNMINEABLE_MANAGED_INSTALL"] = "1"
+        return environment
+    }
+
+    private func installerEnvironmentName(for target: InstallTarget) -> String {
+        switch target {
+        case .xmrig:
+            return "XMRIG_PATH"
+        case .cpuminerScash:
+            return "CPUMINER_SCASH_PATH"
+        case .uselethminer:
+            return "USELETHMINER_PATH"
+        case .srbminer:
+            return "SRBMINER_PATH"
+        }
+    }
+
+    private func validateCustomBinaryPath(rawInput: String, target: InstallTarget) throws -> URL {
+        let expanded = NSString(string: rawInput).expandingTildeInPath
+        let resolvedURL = URL(fileURLWithPath: expanded).standardizedFileURL.resolvingSymlinksInPath()
+        var isDirectory: ObjCBool = false
+        guard fileManager.fileExists(atPath: resolvedURL.path, isDirectory: &isDirectory) else {
+            throw NSError(domain: "macunmineable", code: 15, userInfo: [NSLocalizedDescriptionKey: "Path does not exist: \(resolvedURL.path)"])
+        }
+        guard !isDirectory.boolValue else {
+            throw NSError(domain: "macunmineable", code: 16, userInfo: [NSLocalizedDescriptionKey: "Expected a binary file, but found a directory: \(resolvedURL.path)"])
+        }
+
+        if !fileManager.isExecutableFile(atPath: resolvedURL.path) {
+            do {
+                try makeExecutable(path: resolvedURL.path)
+            } catch {
+                throw NSError(domain: "macunmineable", code: 17, userInfo: [NSLocalizedDescriptionKey: "Could not set executable bit: \(error.localizedDescription)"])
+            }
+        }
+        guard fileManager.isExecutableFile(atPath: resolvedURL.path) else {
+            throw NSError(domain: "macunmineable", code: 18, userInfo: [NSLocalizedDescriptionKey: "File is not executable: \(resolvedURL.path)"])
+        }
+
+        let fileInfo = Self.runCapture(executable: "/usr/bin/file", arguments: ["-b", resolvedURL.path])
+        let lowered = fileInfo.output.lowercased()
+        guard fileInfo.code == 0, lowered.contains("mach-o") || lowered.contains("universal binary") else {
+            throw NSError(domain: "macunmineable", code: 19, userInfo: [NSLocalizedDescriptionKey: "\(target.displayName) must point to a native macOS Mach-O executable."])
+        }
+
+        return resolvedURL
+    }
+
     private func makeExecutable(path: String) throws {
         let attrs = try fileManager.attributesOfItem(atPath: path)
         let current = (attrs[.posixPermissions] as? NSNumber)?.intValue ?? 0o644
@@ -1611,8 +1681,15 @@ final class NativeAppModel: ObservableObject {
 
     private func fetchCoins() {
         guard let url = URL(string: "https://api.unminable.com/v5/coin") else { return }
-        URLSession.shared.dataTask(with: url) { [weak self] data, _, _ in
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.timeoutIntervalForRequest = 10
+        configuration.timeoutIntervalForResource = 20
+        URLSession(configuration: configuration).dataTask(with: url) { [weak self] data, response, _ in
             guard let self, let data else { return }
+            guard let httpResponse = response as? HTTPURLResponse, (200 ..< 300).contains(httpResponse.statusCode) else {
+                return
+            }
+            guard data.count <= 1_000_000 else { return }
             guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                   let rawCoins = object["data"] as? [[String: Any]]
             else {
@@ -1762,18 +1839,22 @@ struct NativeSettingsView: View {
                         Text(mode.displayName).tag(mode.rawValue)
                     }
                 }
+                .help("Choose whether the app follows macOS appearance or forces light or dark mode.")
                 Picker("Palette", selection: $paletteRaw) {
                     ForEach(AccentPalette.allCases) { option in
                         Text(option.displayName).tag(option.rawValue)
                     }
                 }
+                .help("Choose the accent colors used by cards, controls, and charts.")
                 Text("Current: \(appearanceMode.displayName) / \(palette.displayName)")
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
             }
 
             Toggle("Auto-install managed miners if missing", isOn: $autoInstallXMRig)
+                .help("Install the built-in managed miners automatically when the app detects one is missing.")
             Toggle("Validate binaries on launch", isOn: $autoValidateOnLaunch)
+                .help("Run a startup validation pass that checks miner paths, executability, and architecture.")
             Text("Managed Apple Silicon installers cover XMRig, cpuminer-scash, and UselethMiner. SRBMiner macOS binaries may still be unavailable in official releases.")
                 .font(.system(size: 12))
                 .foregroundStyle(.secondary)
@@ -1788,6 +1869,7 @@ struct NativeSettingsView: View {
                 Button("Buy Me a Coffee") {
                     openExternalURL(supportURLString)
                 }
+                .help("Open the project support page in your default browser.")
             }
         }
         .padding(18)
@@ -1798,6 +1880,7 @@ struct NativeSettingsView: View {
                 Button("Close") {
                     NSApp.keyWindow?.close()
                 }
+                .help("Close the settings window.")
             }
         }
     }
@@ -1813,20 +1896,26 @@ struct MenuBarControlsView: View {
                 NSApp.activate(ignoringOtherApps: true)
                 NSApp.windows.first?.makeKeyAndOrderFront(nil)
             }
+            .help("Bring the main macUnmineable window to the front.")
             Button("Settings...") {
                 NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
                 NSApp.activate(ignoringOtherApps: true)
             }
+            .help("Open the settings window.")
             Divider()
             Toggle("Auto-install managed miners", isOn: $autoInstallXMRig)
+                .help("Install built-in managed miners automatically when they are missing.")
             Toggle("Validate on launch", isOn: $autoValidateOnLaunch)
+                .help("Validate miner binaries each time the app launches.")
             Divider()
             Button("Buy Me a Coffee") {
                 openExternalURL(supportURLString)
             }
+            .help("Open the project support page in your default browser.")
             Button("Quit") {
                 NSApp.terminate(nil)
             }
+            .help("Quit macUnmineable.")
         }
         .padding(10)
         .frame(width: 260)
@@ -1876,6 +1965,7 @@ struct DashboardCard<Content: View>: View {
 struct IconChromeButton: View {
     let systemName: String
     let theme: DashboardTheme
+    let helpText: String
     let action: () -> Void
 
     var body: some View {
@@ -1894,6 +1984,7 @@ struct IconChromeButton: View {
                 )
         }
         .buttonStyle(.plain)
+        .help(helpText)
     }
 }
 
@@ -1923,6 +2014,7 @@ struct SessionLine: View {
     let label: String
     let value: String
     let theme: DashboardTheme
+    var helpText: String? = nil
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 6) {
@@ -1934,6 +2026,7 @@ struct SessionLine: View {
             Spacer(minLength: 0)
         }
         .font(.system(size: 17, weight: .regular, design: .rounded))
+        .help(helpText ?? "\(label): \(value)")
     }
 }
 
@@ -1992,6 +2085,7 @@ struct SegmentedChoiceButton: View {
     let title: String
     let selected: Bool
     let theme: DashboardTheme
+    let helpText: String
     let action: () -> Void
 
     var body: some View {
@@ -2011,6 +2105,7 @@ struct SegmentedChoiceButton: View {
                 )
         }
         .buttonStyle(.plain)
+        .help(helpText)
     }
 }
 
@@ -2096,10 +2191,10 @@ struct SetupSheetView: View {
                     Text("OneZeroMiner: generic tarball is Linux ELF x86-64, not macOS")
                 }
 
-                Section("Bundled Binaries") {
-                    Text("XMRig bundled: \(bundled[.xmrig] == true ? "Yes" : "No")")
-                    Text("cpuminer-scash bundled: \(bundled[.cpuminerScash] == true ? "Yes" : "No")")
-                    Text("UselethMiner bundled: \(bundled[.uselethminer] == true ? "Yes" : "No")")
+                Section("Installed Runtime Binaries") {
+                    Text("XMRig installed: \(bundled[.xmrig] == true ? "Yes" : "No")")
+                    Text("cpuminer-scash installed: \(bundled[.cpuminerScash] == true ? "Yes" : "No")")
+                    Text("UselethMiner installed: \(bundled[.uselethminer] == true ? "Yes" : "No")")
                     Text("Custom SRBMiner present: \(model.hasUsableSRBMinerBinary ? "Yes" : "No")")
                 }
 
@@ -2110,12 +2205,14 @@ struct SetupSheetView: View {
                         }
                         .buttonStyle(.bordered)
                         .disabled(model.isInstalling || model.isMining)
+                        .help("Download or refresh the managed XMRig binary into the local runtime.")
 
                         Button("Check XMRig Release") {
                             model.install(target: .xmrig, dryRun: true)
                         }
                         .buttonStyle(.bordered)
                         .disabled(model.isInstalling || model.isMining)
+                        .help("Resolve and display the upstream XMRig release without changing local files.")
                     }
 
                     HStack(spacing: 10) {
@@ -2124,12 +2221,14 @@ struct SetupSheetView: View {
                         }
                         .buttonStyle(.bordered)
                         .disabled(model.isInstalling || model.isMining)
+                        .help("Download or refresh the managed cpuminer-scash binary into the local runtime.")
 
                         Button("Check cpuminer-scash Release") {
                             model.install(target: .cpuminerScash, dryRun: true)
                         }
                         .buttonStyle(.bordered)
                         .disabled(model.isInstalling || model.isMining)
+                        .help("Resolve and display the upstream cpuminer-scash release without changing local files.")
                     }
 
                     HStack(spacing: 10) {
@@ -2138,12 +2237,14 @@ struct SetupSheetView: View {
                         }
                         .buttonStyle(.bordered)
                         .disabled(model.isInstalling || model.isMining)
+                        .help("Download or refresh the managed UselethMiner package into the local runtime.")
 
                         Button("Check UselethMiner Release") {
                             model.install(target: .uselethminer, dryRun: true)
                         }
                         .buttonStyle(.bordered)
                         .disabled(model.isInstalling || model.isMining)
+                        .help("Resolve and display the upstream UselethMiner release without changing local files.")
                     }
                     Text("Managed miner downloads are verified before install. Tarball-based miners use upstream SHA256 manifests, and UselethMiner packages must pass Apple signature and notarization checks.")
                         .foregroundStyle(.secondary)
@@ -2177,6 +2278,7 @@ struct SetupSheetView: View {
                     }
                     .buttonStyle(.bordered)
                     .disabled(model.isInstalling)
+                    .help("Check every configured miner path for existence, executability, architecture, and version output.")
 
                     Text(model.validationStatusText)
                         .foregroundStyle(.secondary)
@@ -2203,6 +2305,7 @@ struct SetupSheetView: View {
                     Button("Close") {
                         dismiss()
                     }
+                    .help("Close the setup window.")
                 }
             }
         }
@@ -2222,10 +2325,13 @@ struct SetupSheetView: View {
                 .foregroundStyle(.secondary)
             HStack(spacing: 10) {
                 TextField("/absolute/path/to/binary", text: text)
+                    .help("Paste an absolute path to a native macOS Mach-O miner binary.")
                 Button("Save", action: onSave)
                     .buttonStyle(.bordered)
+                    .help("Save this custom binary path after validating that it is executable.")
                 Button("Clear", action: onClear)
                     .buttonStyle(.bordered)
+                    .help("Remove the saved custom path and fall back to the managed runtime binary.")
             }
         }
     }
@@ -2250,6 +2356,7 @@ struct AdvancedMiningSheetView: View {
                             Text(String(port)).tag(port)
                         }
                     }
+                    .help("Select the unMineable port used for the current algorithm.")
                     .onChange(of: model.selectedPort) { _, _ in
                         model.handleAlgorithmOrPortChange()
                     }
@@ -2263,6 +2370,7 @@ struct AdvancedMiningSheetView: View {
                                 Text(backend.displayName).tag(backend)
                             }
                         }
+                        .help("Choose which installed miner backend should run the selected algorithm.")
                         .onChange(of: model.backend) { _, _ in
                             model.handleBackendChange()
                         }
@@ -2271,10 +2379,12 @@ struct AdvancedMiningSheetView: View {
 
                 Section("Worker") {
                     TextField("Worker (optional)", text: $model.workerName)
+                        .help("Optional worker label appended to the unMineable username.")
                         .onChange(of: model.workerName) { _, _ in
                             model.handleSimpleFormChange()
                         }
                     TextField("Referral (optional)", text: $model.referralCode)
+                        .help("Optional referral code appended to the unMineable username.")
                         .onChange(of: model.referralCode) { _, _ in
                             model.handleSimpleFormChange()
                         }
@@ -2285,6 +2395,7 @@ struct AdvancedMiningSheetView: View {
                         .foregroundStyle(.secondary)
                         .font(.system(size: 12))
                     Slider(value: $model.threadsPercent, in: 1 ... 100, step: 1)
+                        .help("Limit CPU thread usage for CPU-capable backends.")
                         .onChange(of: model.threadsPercent) { _, _ in
                             model.handleSimpleFormChange()
                         }
@@ -2296,6 +2407,7 @@ struct AdvancedMiningSheetView: View {
                     Button("Close") {
                         dismiss()
                     }
+                    .help("Close the advanced options window.")
                 }
             }
         }
@@ -2316,6 +2428,7 @@ struct LogsSheetView: View {
                         model.clearMinerLogs()
                     }
                     .buttonStyle(.bordered)
+                    .help("Clear the visible miner log output.")
                 }
                 TextEditor(text: $model.minerLogs)
                     .font(.system(.body, design: .monospaced))
@@ -2328,6 +2441,7 @@ struct LogsSheetView: View {
                     Button("Close") {
                         dismiss()
                     }
+                    .help("Close the logs window.")
                 }
             }
         }
@@ -2350,6 +2464,7 @@ struct InfoSheetView: View {
                     }
                     .buttonStyle(.bordered)
                     .disabled(model.isTestingConnection)
+                    .help("Open a short TCP connection test to the selected unMineable host and port.")
                     Text(model.poolConnectionText)
                         .foregroundStyle(.secondary)
                         .font(.system(size: 12))
@@ -2380,6 +2495,7 @@ struct InfoSheetView: View {
                     Button("Buy Me a Coffee") {
                         openExternalURL(supportURLString)
                     }
+                    .help("Open the project support page in your default browser.")
                     Text("License and third-party notices are included in the repository.")
                         .foregroundStyle(.secondary)
                         .font(.system(size: 12))
@@ -2391,6 +2507,7 @@ struct InfoSheetView: View {
                     Button("Close") {
                         dismiss()
                     }
+                    .help("Close the status window.")
                 }
             }
         }
@@ -2422,11 +2539,11 @@ struct MineDashboardView: View {
                         .foregroundStyle(theme.secondaryText)
                     Spacer()
                     PillView(text: model.isOnline ? "Online" : "Offline", running: model.isOnline, theme: theme)
-                    IconChromeButton(systemName: "paintpalette.fill", theme: theme) {
+                    IconChromeButton(systemName: "paintpalette.fill", theme: theme, helpText: "Open appearance settings.") {
                         NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
                         NSApp.activate(ignoringOtherApps: true)
                     }
-                    IconChromeButton(systemName: "folder.fill", theme: theme) {
+                    IconChromeButton(systemName: "folder.fill", theme: theme, helpText: "Open miner setup, validation, and install tools.") {
                         activePanel = .setup
                     }
                 }
@@ -2447,14 +2564,14 @@ struct MineDashboardView: View {
                     .padding(.bottom, 18)
 
                     VStack(alignment: .leading, spacing: 6) {
-                        SessionLine(label: "Address", value: model.displayWallet(), theme: theme)
+                        SessionLine(label: "Address", value: model.displayWallet(), theme: theme, helpText: model.walletAddress.isEmpty ? "Wallet address is not set." : model.walletAddress)
                         SessionLine(label: "Coin", value: model.coinSymbol, theme: theme)
                         SessionLine(label: "Algorithm", value: model.selectedAlgorithm?.label ?? "-", theme: theme)
                         SessionLine(label: "Device", value: model.hardware.displayName, theme: theme)
                         SessionLine(label: "Backend", value: model.displayedBackendName, theme: theme)
                         SessionLine(label: "Worker", value: model.displayWorker(), theme: theme)
                         SessionLine(label: "Port", value: String(model.selectedPort), theme: theme)
-                        SessionLine(label: "Pool", value: model.selectedPoolHost, theme: theme)
+                        SessionLine(label: "Pool", value: model.selectedPoolHost, theme: theme, helpText: "Current pool host: \(model.selectedPoolHost)")
                     }
                 }
 
@@ -2481,6 +2598,7 @@ struct MineDashboardView: View {
                                     SelectionFieldLabel(text: model.coinSymbol, theme: theme)
                                 }
                                 .buttonStyle(.plain)
+                                .help("Choose the payout coin. This does not change the miner backend by itself.")
                             }
 
                             FieldShell(title: "Algorithm", theme: theme) {
@@ -2496,6 +2614,7 @@ struct MineDashboardView: View {
                                     SelectionFieldLabel(text: model.selectedAlgorithm?.label ?? "No Match", theme: theme)
                                 }
                                 .buttonStyle(.plain)
+                                .help("Choose the mining algorithm that will connect to the matching unMineable pool.")
                             }
                         }
 
@@ -2509,6 +2628,7 @@ struct MineDashboardView: View {
                                 .font(.system(size: 15, weight: .medium, design: .rounded))
                                 .foregroundStyle(theme.primaryText)
                                 .tint(theme.accentStart)
+                                .help("Paste the payout wallet address. This is the only required identity field.")
                                 .onChange(of: model.walletAddress) { _, _ in
                                     model.handleSimpleFormChange()
                                 }
@@ -2526,6 +2646,7 @@ struct MineDashboardView: View {
                                             title: hw.displayName,
                                             selected: model.hardware == hw,
                                             theme: theme,
+                                            helpText: "Use \(hw.displayName.lowercased()) mode for the selected miner backend.",
                                             action: {
                                                 model.hardware = hw
                                                 model.handleHardwareChange()
@@ -2542,6 +2663,7 @@ struct MineDashboardView: View {
                             }
                             .buttonStyle(.bordered)
                             .disabled(model.isTestingConnection)
+                            .help("Test reachability to the selected unMineable pool before mining.")
 
                             Text(model.poolConnectionText)
                                 .font(.system(size: 12, weight: .medium, design: .rounded))
@@ -2572,13 +2694,13 @@ struct MineDashboardView: View {
                             MetricBlock(title: "Effective Hashrate", value: effectiveHashrate, theme: theme)
                             Spacer()
                             HStack(spacing: 10) {
-                                IconChromeButton(systemName: "globe", theme: theme) {
+                                IconChromeButton(systemName: "globe", theme: theme, helpText: "Open pool, session, and project status.") {
                                     activePanel = .info
                                 }
-                                IconChromeButton(systemName: "doc.text", theme: theme) {
+                                IconChromeButton(systemName: "doc.text", theme: theme, helpText: "Open miner output logs.") {
                                     activePanel = .logs
                                 }
-                                IconChromeButton(systemName: "gearshape", theme: theme) {
+                                IconChromeButton(systemName: "gearshape", theme: theme, helpText: "Open advanced mining options.") {
                                     activePanel = .advanced
                                 }
 
@@ -2604,6 +2726,7 @@ struct MineDashboardView: View {
                                 )
                                 .opacity(model.isInstalling ? 0.5 : 1)
                                 .disabled(model.isInstalling)
+                                .help(model.isMining ? "Stop the active miner process." : "Start mining with the current coin, wallet, algorithm, and hardware selection.")
                             }
                         }
                     }

@@ -4,6 +4,31 @@ All notable changes to this project are documented in this file.
 
 This project follows Semantic Versioning for release tags.
 
+## [0.4.1] - 2026-03-23
+
+### Changed
+
+- Added hover tooltips across the native dashboard, settings, menu bar, and
+  secondary panels so the GUI explains each action without adding visual noise.
+- Reduced privacy leakage in the status panel by showing OS and architecture
+  instead of the local machine hostname.
+- Cleaned repository documentation to remove machine-specific absolute file
+  paths.
+
+### Security
+
+- The app now executes managed installer scripts from the read-only app bundle
+  instead of a writable `Application Support` copy.
+- Managed installer runs now pass explicit target paths and use `--force`
+  intentionally, rather than relying on ambiguous overwrite behavior.
+- Custom miner path overrides are validated as native macOS Mach-O executables
+  before they are saved.
+- Local config and runtime directories are now written with tighter
+  user-only permissions.
+- Installer scripts now enforce HTTPS/TLS for downloads, require safer target
+  path shapes, and refuse to overwrite existing payloads unless `--force` is
+  supplied.
+
 ## [0.4.0] - 2026-03-23
 
 ### Added
