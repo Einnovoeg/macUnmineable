@@ -46,19 +46,20 @@ Compliance notes:
 - Upstream description: `Ethereum CPU miner and aggregating proxy`
 - Upstream Apple Silicon note: the README documents a `metal` GPU backend for
   Apple Silicon
-- Current upstream release metadata checked on **March 23, 2026**
+- Current upstream release metadata and packaging behavior checked on **March 24, 2026**
 - GitHub repository metadata does not expose an SPDX license identifier
 
 Compliance notes:
 
-- The source repository for `macUnmineable` does **not** commit or attach the
-  UselethMiner binary payload.
-- The installer script downloads the official upstream macOS package directly,
-  requires the package to pass Apple signature and notarization checks, and
-  then installs the payload locally.
+- The source repository for `macUnmineable` does **not** commit, attach, or
+  bundle the UselethMiner binary payload.
+- `macUnmineable` does not treat UselethMiner as a managed bundled backend,
+  because upstream macOS packaging expects installation to
+  `/usr/local/uselethminer`.
 - Because upstream license metadata is not clearly exposed in the repository
-  metadata, this project does not publish the UselethMiner payload in its own
-  source releases.
+  metadata, and because the upstream package has its own installation model,
+  this project does not publish the UselethMiner payload in its own source
+  releases.
 
 ## Third-party service
 

@@ -4,6 +4,28 @@ All notable changes to this project are documented in this file.
 
 This project follows Semantic Versioning for release tags.
 
+## [0.4.2] - 2026-03-24
+
+### Changed
+
+- `UselethMiner` is no longer treated as a managed bundled backend. The app now
+  recognizes it only when the official upstream macOS package has installed the
+  binary to `/usr/local/uselethminer`.
+- The `UselethMiner` command builder now uses explicit `--username` and
+  `--password` flags so unMineable's `COIN:wallet.worker` login format is
+  passed correctly.
+- The app bundle builder no longer embeds the broken app-managed UselethMiner
+  payload path.
+
+### Fixed
+
+- Corrected a real backend bug where the previous `UselethMiner`
+  `username[:password]@host:port` launch string was incompatible with
+  unMineable usernames containing `:`.
+- Corrected a second backend bug where the app-managed UselethMiner payload
+  failed at runtime because upstream macOS packaging expects a system install
+  path under `/usr/local/uselethminer`.
+
 ## [0.4.1] - 2026-03-23
 
 ### Changed

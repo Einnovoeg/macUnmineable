@@ -476,15 +476,15 @@ final class NativeAppModel: ObservableObject {
             backends.append("cpuminer-scash for RandomX on CPU")
         }
         if hasUsableUselethMinerBinary {
-            backends.append("UselethMiner for Ethash on CPU or Metal GPU")
+            backends.append("UselethMiner for Ethash on CPU or Metal GPU when the official /usr/local installation is present")
         }
         if hasUsableSRBMinerBinary {
             backends.append("custom SRBMiner build for any manually supplied modes")
         }
         if backends.isEmpty {
-            return "Apple Silicon mode: install the managed backends from Setup to enable XMRig, cpuminer-scash, and UselethMiner. Your payout coin, algorithm, hardware, and backend remain separate settings."
+            return "Apple Silicon mode: install the managed backends from Setup to enable XMRig and cpuminer-scash. UselethMiner only becomes available after its official macOS package is installed to /usr/local/uselethminer. Your payout coin, algorithm, hardware, and backend remain separate settings."
         }
-        return "Apple Silicon managed backends: \(backends.joined(separator: " | "))."
+        return "Apple Silicon supported backends: \(backends.joined(separator: " | "))."
     }
 
     var portOptions: [Int] {
@@ -791,9 +791,13 @@ final class NativeAppModel: ObservableObject {
             return
         }
 
-        if target == .srbminer {
-            installStatusText = "No official installer is available for custom secondary miners."
-            warningText = "Add a compatible custom miner path manually instead of using an installer."
+        if target == .srbminer || target == .uselethminer {
+            installStatusText = "\(target.displayName) is not available as a managed in-app installer target."
+            if target == .uselethminer {
+                warningText = "Install the official UselethMiner macOS package separately so it is present at /usr/local/uselethminer."
+            } else {
+                warningText = "Add a compatible custom miner path manually instead of using an installer."
+            }
             return
         }
         guard let scriptURL = bundledInstallerScriptURL(target: target) else {
@@ -859,7 +863,7 @@ final class NativeAppModel: ObservableObject {
     }
 
     func ensureManagedMinersInstalledIfNeeded() {
-        let managedTargets: [InstallTarget] = [.xmrig, .cpuminerScash, .uselethminer]
+        let managedTargets: [InstallTarget] = [.xmrig, .cpuminerScash]
         for target in managedTargets {
             let envName: String
             switch target {
@@ -1144,17 +1148,22 @@ final class NativeAppModel: ObservableObject {
             user += "#\(referral)"
         }
 
-        let stratum = "\(user):x@\(cfg.host):\(selectedPort)"
         var cmd = [
             effectiveMinerPath(target: .uselethminer).path,
-            stratum,
-            "-t", String(max(1, threadCountFromPercent())),
+            "--mine",
+            "--host", cfg.host,
+            "--port", String(selectedPort),
+            "--username", user,
+            "--password", "x",
+            "--threads", String(max(1, threadCountFromPercent())),
         ]
 
         if hardware == .gpu {
             cmd += ["--flavor", "none", "--flavor-gpu", "metal"]
         } else if hardware == .auto {
-            cmd += ["--flavor-gpu", "metal"]
+            cmd += ["--flavor", "armv8af", "--size", "88", "--flavor-gpu", "metal"]
+        } else {
+            cmd += ["--flavor", "armv8af", "--size", "88"]
         }
 
         return cmd
@@ -1372,7 +1381,7 @@ final class NativeAppModel: ObservableObject {
         case .cpuminerScash:
             return runtimeURL.appendingPathComponent("miners/cpuminer-scash/minerd")
         case .uselethminer:
-            return runtimeURL.appendingPathComponent("miners/uselethminer/uselethminer")
+            return URL(fileURLWithPath: "/usr/local/uselethminer/uselethminer")
         case .srbminer:
             return runtimeURL.appendingPathComponent("miners/srbminer/SRBMiner-MULTI")
         }
@@ -1465,7 +1474,6 @@ final class NativeAppModel: ObservableObject {
         syncRuntimeFolder(named: "miners", from: bundleRuntime)
         ensureExecutableBit(at: runtimeURL.appendingPathComponent("miners/xmrig/xmrig").path)
         ensureExecutableBit(at: runtimeURL.appendingPathComponent("miners/cpuminer-scash/minerd").path)
-        ensureExecutableBit(at: runtimeURL.appendingPathComponent("miners/uselethminer/uselethminer").path)
         ensureExecutableBit(at: runtimeURL.appendingPathComponent("miners/srbminer/SRBMiner-MULTI").path)
     }
 
@@ -1608,7 +1616,7 @@ final class NativeAppModel: ObservableObject {
         case .cpuminerScash:
             scriptName = "install_cpuminer_scash.sh"
         case .uselethminer:
-            scriptName = "install_uselethminer.sh"
+            return nil
         case .srbminer:
             return nil
         }
@@ -1855,7 +1863,7 @@ struct NativeSettingsView: View {
                 .help("Install the built-in managed miners automatically when the app detects one is missing.")
             Toggle("Validate binaries on launch", isOn: $autoValidateOnLaunch)
                 .help("Run a startup validation pass that checks miner paths, executability, and architecture.")
-            Text("Managed Apple Silicon installers cover XMRig, cpuminer-scash, and UselethMiner. SRBMiner macOS binaries may still be unavailable in official releases.")
+            Text("Managed Apple Silicon installers cover XMRig and cpuminer-scash. UselethMiner is only enabled after its official macOS package installs to /usr/local/uselethminer.")
                 .font(.system(size: 12))
                 .foregroundStyle(.secondary)
 
@@ -2179,22 +2187,22 @@ struct SetupSheetView: View {
                 }
 
                 Section("Official Miner Matrix") {
-                    Text("Checked against official upstream releases on March 23, 2026.")
+                    Text("Checked against official upstream releases and startup behavior on March 24, 2026.")
                         .foregroundStyle(.secondary)
                         .font(.system(size: 12))
                     Text("XMRig: macOS arm64 release available")
                     Text("cpuminer-scash: macOS Sonoma arm64 release available")
-                    Text("UselethMiner: macOS arm64 package available, Apple Silicon Metal GPU backend documented upstream")
+                    Text("UselethMiner: official macOS arm64 package exists, but upstream requires installation to /usr/local/uselethminer; it is not a managed in-app backend")
                     Text("SRBMiner-MULTI: no normal macOS release asset")
                     Text("nanominer: latest release is Linux/Windows only")
                     Text("BzMiner: latest release is Linux/Windows only")
                     Text("OneZeroMiner: generic tarball is Linux ELF x86-64, not macOS")
                 }
 
-                Section("Installed Runtime Binaries") {
+                Section("Installed Miner Binaries") {
                     Text("XMRig installed: \(bundled[.xmrig] == true ? "Yes" : "No")")
                     Text("cpuminer-scash installed: \(bundled[.cpuminerScash] == true ? "Yes" : "No")")
-                    Text("UselethMiner installed: \(bundled[.uselethminer] == true ? "Yes" : "No")")
+                    Text("UselethMiner detected at /usr/local/uselethminer: \(bundled[.uselethminer] == true ? "Yes" : "No")")
                     Text("Custom SRBMiner present: \(model.hasUsableSRBMinerBinary ? "Yes" : "No")")
                 }
 
@@ -2231,22 +2239,7 @@ struct SetupSheetView: View {
                         .help("Resolve and display the upstream cpuminer-scash release without changing local files.")
                     }
 
-                    HStack(spacing: 10) {
-                        Button("Install / Update UselethMiner") {
-                            model.install(target: .uselethminer, dryRun: false)
-                        }
-                        .buttonStyle(.bordered)
-                        .disabled(model.isInstalling || model.isMining)
-                        .help("Download or refresh the managed UselethMiner package into the local runtime.")
-
-                        Button("Check UselethMiner Release") {
-                            model.install(target: .uselethminer, dryRun: true)
-                        }
-                        .buttonStyle(.bordered)
-                        .disabled(model.isInstalling || model.isMining)
-                        .help("Resolve and display the upstream UselethMiner release without changing local files.")
-                    }
-                    Text("Managed miner downloads are verified before install. Tarball-based miners use upstream SHA256 manifests, and UselethMiner packages must pass Apple signature and notarization checks.")
+                    Text("Managed miner downloads are verified before install. Tarball-based miners use upstream SHA256 manifests. UselethMiner is excluded here because its upstream macOS package expects a system install path instead of an app-managed runtime copy.")
                         .foregroundStyle(.secondary)
                         .font(.system(size: 12))
                 }
@@ -2267,7 +2260,10 @@ struct SetupSheetView: View {
                     Text("Only add SRBMiner here if you already have a macOS-compatible custom build. The app no longer surfaces it as a normal Apple Silicon installer target.")
                         .foregroundStyle(.secondary)
                         .font(.system(size: 12))
-                    Text("Built-in Apple Silicon miners are managed by the app and do not require manual paths.")
+                    Text("UselethMiner is only recognized when the official upstream package has installed it to /usr/local/uselethminer.")
+                        .foregroundStyle(.secondary)
+                        .font(.system(size: 12))
+                    Text("Built-in Apple Silicon miners are limited to the managed backends the app can verify and update safely.")
                         .foregroundStyle(.secondary)
                         .font(.system(size: 12))
                 }

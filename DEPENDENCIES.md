@@ -7,19 +7,16 @@
 - Managed Apple Silicon miners supported by the app:
   - `XMRig` macOS arm64
   - `cpuminer-scash` macOS Sonoma arm64
-  - `UselethMiner` macOS arm64 package payload
 - The app can auto-install these managed miners on launch, or you can install
   them manually with:
   - `./scripts/install_xmrig.sh`
   - `./scripts/install_cpuminer_scash.sh`
-  - `./scripts/install_uselethminer.sh`
 
 ## Build
 
 - Xcode Command Line Tools with `swiftc`
 - `bash`
 - `curl`
-- `pkgutil`
 - `python3`
 - `shasum`
 - `tar`
@@ -33,4 +30,7 @@
 
 - A user-supplied custom secondary miner binary if you want to experiment beyond
   the managed Apple Silicon backends
+- The official `UselethMiner` macOS package if you want optional `Ethash`
+  support through its upstream `/usr/local/uselethminer` installation model
+- `pkgutil` if you are evaluating the standalone `UselethMiner` package helper
 - `gh` if you want to publish or manage the repository from the command line

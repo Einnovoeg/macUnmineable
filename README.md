@@ -3,7 +3,7 @@
 `macUnmineable` is a native SwiftUI macOS app that wraps the unMineable mining
 workflow into a wallet-first GUI for Apple Silicon.
 
-Current source release: `v0.4.1`
+Current source release: `v0.4.2`
 
 The app lets you:
 
@@ -19,19 +19,21 @@ The managed Apple Silicon backends in this project are:
 
 - `XMRig` on CPU for `RandomX`, `GhostRider`, and `KawPow`
 - `cpuminer-scash` on CPU for `RandomX`
-- `UselethMiner` on CPU or Apple Silicon `Metal` GPU for `Ethash`
+- Optional external `UselethMiner` on CPU or Apple Silicon `Metal` GPU for `Ethash` when the official macOS package is installed to `/usr/local/uselethminer`
 
-The app can still accept a custom secondary miner path, but the normal Apple
-Silicon flow is now based on managed backends that the app can install and
-update itself.
+The app can still accept a custom secondary miner path. The normal Apple
+Silicon flow is based on managed backends that the app can install and update
+itself, plus optional external backends only when their upstream installation
+model is compatible.
 
 ### Official miner matrix
 
-Checked on **March 23, 2026** against official upstream release feeds:
+Checked on **March 24, 2026** against official upstream release feeds and local
+startup behavior:
 
 - `XMRig`: official `macOS arm64` release available
 - `cpuminer-scash`: official `macOS Sonoma arm64` release available
-- `UselethMiner`: official `macOS arm64` package available, with Apple Silicon Metal GPU support documented upstream
+- `UselethMiner`: official `macOS arm64` package available, with Apple Silicon Metal GPU support documented upstream, but upstream macOS packaging expects installation to `/usr/local/uselethminer`
 - `SRBMiner-MULTI`: no normal macOS release asset in the latest official release
 - `nanominer`: latest official release ships Linux/Windows assets only
 - `BzMiner`: latest official release ships Linux/Windows assets only
@@ -45,7 +47,6 @@ Checked on **March 23, 2026** against official upstream release feeds:
 - [scripts/build_native_app.sh](scripts/build_native_app.sh): app bundle builder
 - [scripts/install_xmrig.sh](scripts/install_xmrig.sh): official XMRig installer
 - [scripts/install_cpuminer_scash.sh](scripts/install_cpuminer_scash.sh): official cpuminer-scash installer
-- [scripts/install_uselethminer.sh](scripts/install_uselethminer.sh): official UselethMiner installer
 - [scripts/verify.sh](scripts/verify.sh): smoke-test verification script
 - [DEPENDENCIES.md](DEPENDENCIES.md): developer and runtime requirements
 - [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md): third-party credits and license notes
@@ -76,6 +77,10 @@ open dist/macUnmineable.app
 3. On first launch, let the app auto-install the managed miners if they are
    missing, or open `Setup` and install/update them individually.
 
+4. If you want `Ethash` through `UselethMiner`, install the official upstream
+   macOS package separately so the binary is present at
+   `/usr/local/uselethminer/uselethminer`.
+
 ### Developers
 
 The source repository intentionally does not commit prebuilt managed miner
@@ -85,11 +90,12 @@ into the local working tree when needed:
 ```bash
 ./scripts/install_xmrig.sh
 ./scripts/install_cpuminer_scash.sh
-./scripts/install_uselethminer.sh
 ```
 
-If you already have a compatible custom miner build, point the app at it from
-the `Setup` panel.
+If you install the official `UselethMiner` macOS package separately, the app
+can detect it at `/usr/local/uselethminer/uselethminer`. If you already have a
+compatible custom secondary miner build, point the app at it from the `Setup`
+panel.
 
 ## Verification
 
@@ -122,10 +128,10 @@ See [DEPENDENCIES.md](DEPENDENCIES.md).
 
 - Managed tarball installers verify upstream `SHA256SUMS` manifests before
   installing `XMRig` or `cpuminer-scash`.
-- The `UselethMiner` installer requires the downloaded package to pass Apple
-  signature and notarization checks before its payload is installed.
 - The app executes installer scripts from the read-only app bundle instead of a
   writable `Application Support` copy.
+- `UselethMiner` is not treated as a managed bundled backend because upstream
+  macOS packaging expects a system install path outside the app runtime.
 - Managed installer targets must be explicit absolute paths, and the app now
   validates custom miner overrides as native macOS Mach-O executables before
   saving them.

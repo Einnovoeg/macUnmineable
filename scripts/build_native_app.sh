@@ -43,7 +43,6 @@ if [[ "${DOWNLOAD_MANAGED_MINERS}" == "1" ]]; then
   echo "Ensuring managed miners are installed before bundling..."
   [[ -x "${ROOT_DIR}/miners/xmrig/xmrig" ]] || "${ROOT_DIR}/scripts/install_xmrig.sh" --force
   [[ -x "${ROOT_DIR}/miners/cpuminer-scash/minerd" ]] || "${ROOT_DIR}/scripts/install_cpuminer_scash.sh" --force
-  [[ -x "${ROOT_DIR}/miners/uselethminer/uselethminer" ]] || "${ROOT_DIR}/scripts/install_uselethminer.sh" --force
 fi
 
 cat > "${PLIST_PATH}" <<EOF
@@ -89,8 +88,16 @@ swiftc \
 
 mkdir -p "${RUNTIME_DIR}/scripts" "${RUNTIME_DIR}/miners"
 # Only bundle runtime-facing scripts. Build/publish helpers stay in the repo.
-cp "${ROOT_DIR}"/scripts/install_*.sh "${RUNTIME_DIR}/scripts/"
-cp -R "${ROOT_DIR}/miners/." "${RUNTIME_DIR}/miners/"
+cp "${ROOT_DIR}/scripts/install_xmrig.sh" "${ROOT_DIR}/scripts/install_cpuminer_scash.sh" "${RUNTIME_DIR}/scripts/"
+if [[ -d "${ROOT_DIR}/miners/xmrig" ]]; then
+  cp -R "${ROOT_DIR}/miners/xmrig" "${RUNTIME_DIR}/miners/"
+fi
+if [[ -d "${ROOT_DIR}/miners/cpuminer-scash" ]]; then
+  cp -R "${ROOT_DIR}/miners/cpuminer-scash" "${RUNTIME_DIR}/miners/"
+fi
+if [[ -d "${ROOT_DIR}/miners/srbminer" ]]; then
+  cp -R "${ROOT_DIR}/miners/srbminer" "${RUNTIME_DIR}/miners/"
+fi
 
 chmod +x "${APP_BIN}" || true
 chmod +x "${RUNTIME_DIR}"/scripts/install_*.sh || true
@@ -99,9 +106,6 @@ if [[ -f "${RUNTIME_DIR}/miners/xmrig/xmrig" ]]; then
 fi
 if [[ -f "${RUNTIME_DIR}/miners/cpuminer-scash/minerd" ]]; then
   chmod +x "${RUNTIME_DIR}/miners/cpuminer-scash/minerd" || true
-fi
-if [[ -f "${RUNTIME_DIR}/miners/uselethminer/uselethminer" ]]; then
-  chmod +x "${RUNTIME_DIR}/miners/uselethminer/uselethminer" || true
 fi
 if [[ -f "${RUNTIME_DIR}/miners/srbminer/SRBMiner-MULTI" ]]; then
   chmod +x "${RUNTIME_DIR}/miners/srbminer/SRBMiner-MULTI" || true
