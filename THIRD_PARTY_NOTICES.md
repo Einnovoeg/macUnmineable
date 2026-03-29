@@ -21,6 +21,9 @@ Compliance notes:
   XMRig binary.
 - The local installer script downloads the official XMRig release from the
   upstream project when requested.
+- The local app builder can embed the downloaded XMRig payload into a private
+  or redistributed `.app` bundle. If you redistribute such a bundle, you must
+  satisfy XMRig's GPL requirements for that copied binary.
 - If you distribute a build that includes the XMRig binary, you are
   responsible for complying with XMRig's GPL terms for that redistributed copy.
 
@@ -37,6 +40,9 @@ Compliance notes:
   cpuminer-scash binary.
 - The installer script downloads the official upstream release and verifies the
   tarball against the upstream `SHA256SUMS` manifest before installing it.
+- The local app builder can embed the downloaded cpuminer-scash payload into a
+  private or redistributed `.app` bundle. If you redistribute such a bundle,
+  you must satisfy the GPL terms that apply to that copied binary.
 - If you distribute a build that includes the cpuminer-scash binary, you are
   responsible for complying with its GPL terms for that redistributed copy.
 
@@ -60,6 +66,17 @@ Compliance notes:
   metadata, and because the upstream package has its own installation model,
   this project does not publish the UselethMiner payload in its own source
   releases.
+
+## Project license boundary
+
+- `macUnmineable`'s own source code and original project files are licensed
+  under the MIT License in this repository.
+- Third-party miners remain under their original upstream licenses and are not
+  relicensed by this project.
+- Public source releases from this repository are source-only. If you create or
+  redistribute a binary app bundle that includes third-party miner payloads,
+  you are responsible for including the notices, source access, and any other
+  obligations required by those upstream licenses.
 
 ## Third-party service
 

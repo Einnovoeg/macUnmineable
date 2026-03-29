@@ -3,7 +3,7 @@
 `macUnmineable` is a native SwiftUI macOS app that wraps the unMineable mining
 workflow into a wallet-first GUI for Apple Silicon.
 
-Current source release: `v0.4.3`
+Current source release: `v0.4.4`
 
 The app lets you:
 
@@ -61,11 +61,14 @@ startup behavior:
 ./scripts/build_native_app.sh
 ```
 
-The build script downloads and embeds the managed Apple Silicon miners by
-default. To build without that step, use:
+By default, the builder downloads and embeds the managed Apple Silicon miners
+into the generated `.app` bundle so the app can launch with built-in backends.
+
+If you want a source-only bundle that does not embed any third-party miner
+binaries, disable both the download and embedding stages explicitly:
 
 ```bash
-DOWNLOAD_MANAGED_MINERS=0 ./scripts/build_native_app.sh
+DOWNLOAD_MANAGED_MINERS=0 EMBED_MANAGED_MINERS=0 ./scripts/build_native_app.sh
 ```
 
 2. Open the generated bundle:
@@ -108,7 +111,7 @@ Run the full smoke test:
 That script:
 
 - type-checks the SwiftUI source
-- builds the native app bundle
+- builds the native app bundle in both embedded and source-only modes
 - exercises the managed installer scripts
 - verifies dry-run startup for the XMRig-backed algorithms that can be tested safely in automation
 
@@ -123,6 +126,8 @@ See [DEPENDENCIES.md](DEPENDENCIES.md).
 - User-facing release history lives in [CHANGELOG.md](CHANGELOG.md).
 - GitHub releases from this source repository are source-only so the project
   does not redistribute third-party miner binaries.
+- Local builders can still produce an embedded `.app` bundle for personal use
+  or compliant redistribution by leaving the default build flags enabled.
 
 ## Security
 
@@ -135,6 +140,9 @@ See [DEPENDENCIES.md](DEPENDENCIES.md).
 - Managed installer targets must be explicit absolute paths, and the app now
   validates custom miner overrides as native macOS Mach-O executables before
   saving them.
+- The build script now supports an explicit source-only mode so maintainers can
+  verify that public source distributions stay free of third-party miner
+  binaries even when local development machines already have downloaded payloads.
 - Local config and runtime directories are written with tighter user-only
   permissions.
 - The app launches miner binaries directly with fixed argument arrays rather

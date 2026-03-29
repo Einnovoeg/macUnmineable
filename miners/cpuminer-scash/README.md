@@ -9,3 +9,6 @@ Install or update it with:
 ```bash
 ./scripts/install_cpuminer_scash.sh
 ```
+
+License for `cpuminer-scash` remains with the original upstream authors and is
+documented in the repository-level `THIRD_PARTY_NOTICES.md`.

@@ -269,6 +269,8 @@ private enum AppReleaseInfo {
 }
 
 private func openExternalURL(_ rawValue: String) {
+    // External links are restricted to HTTPS destinations so settings/support
+    // buttons cannot be repointed to arbitrary local files or custom schemes.
     guard let components = URLComponents(string: rawValue),
           components.scheme?.lowercased() == "https",
           let host = components.host,
@@ -944,6 +946,9 @@ final class NativeAppModel: ObservableObject {
     }
 
     func validateMiners() {
+        // Validation is intentionally read-only. It captures path, executable
+        // status, architecture, and version output without mutating any runtime
+        // payload so users can debug setup problems safely.
         let paths = effectiveMinerPaths()
         DispatchQueue.global(qos: .utility).async {
             var reports: [String] = []
@@ -1354,6 +1359,8 @@ final class NativeAppModel: ObservableObject {
     }
 
     private func effectiveMinerPath(target: InstallTarget) -> URL {
+        // Path precedence is explicit: process environment for deterministic
+        // automation, then saved user override, then the managed default path.
         let envName: String
         switch target {
         case .xmrig:
@@ -1688,6 +1695,9 @@ final class NativeAppModel: ObservableObject {
     }
 
     private func fetchCoins() {
+        // Coin discovery is best-effort only. The launcher keeps a safe fallback
+        // list locally and replaces it only when the unMineable API returns a
+        // bounded successful response.
         guard let url = URL(string: "https://api.unminable.com/v5/coin") else { return }
         let configuration = URLSessionConfiguration.ephemeral
         configuration.timeoutIntervalForRequest = 10

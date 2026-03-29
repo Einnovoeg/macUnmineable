@@ -32,5 +32,4 @@
   the managed Apple Silicon backends
 - The official `UselethMiner` macOS package if you want optional `Ethash`
   support through its upstream `/usr/local/uselethminer` installation model
-- `pkgutil` if you are evaluating the standalone `UselethMiner` package helper
 - `gh` if you want to publish or manage the repository from the command line

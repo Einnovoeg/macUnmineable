@@ -4,6 +4,25 @@ All notable changes to this project are documented in this file.
 
 This project follows Semantic Versioning for release tags.
 
+## [0.4.4] - 2026-03-29
+
+### Changed
+
+- Tightened the app bundle builder so embedded managed miners are staged
+  deliberately instead of being copied accidentally from a developer-local tree.
+- Added an explicit source-only build mode that omits third-party miner binaries
+  even when they are present locally, while keeping the default end-user build
+  path embedded and ready to run.
+- Cleaned dependency documentation and aligned the README with the current build,
+  verification, and licensing model.
+
+### Verification
+
+- Expanded `./scripts/verify.sh` so it now proves both supported distribution
+  shapes: an embedded app bundle and a source-only app bundle.
+- Re-runs the default embedded build after verification so the generated `dist`
+  app remains the same bundle shape that end users expect.
+
 ## [0.4.3] - 2026-03-24
 
 ### Changed

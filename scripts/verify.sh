@@ -25,8 +25,8 @@ swiftc -parse-as-library -typecheck native/MacUnmineableNative.swift \
   -framework Foundation \
   -framework Network
 
-echo "[verify] Building app bundle"
-./scripts/build_native_app.sh
+echo "[verify] Building app bundle with embedded managed miners"
+DOWNLOAD_MANAGED_MINERS=1 EMBED_MANAGED_MINERS=1 ./scripts/build_native_app.sh
 
 echo "[verify] Installing XMRig into temporary path"
 XMRIG_PATH="${TEST_XMRIG}" ./scripts/install_xmrig.sh --force
@@ -55,5 +55,18 @@ echo "[verify] Checking built app executable"
 test -x "${APP_BIN}"
 test -x "${ROOT_DIR}/dist/macUnmineable.app/Contents/Resources/runtime/miners/xmrig/xmrig"
 test -x "${ROOT_DIR}/dist/macUnmineable.app/Contents/Resources/runtime/miners/cpuminer-scash/minerd"
+
+echo "[verify] Building source-only app bundle"
+DOWNLOAD_MANAGED_MINERS=0 EMBED_MANAGED_MINERS=0 ./scripts/build_native_app.sh
+
+echo "[verify] Checking source-only bundle boundaries"
+test -x "${APP_BIN}"
+test -f "${ROOT_DIR}/dist/macUnmineable.app/Contents/Resources/runtime/miners/xmrig/README.md"
+test -f "${ROOT_DIR}/dist/macUnmineable.app/Contents/Resources/runtime/miners/cpuminer-scash/README.md"
+test ! -f "${ROOT_DIR}/dist/macUnmineable.app/Contents/Resources/runtime/miners/xmrig/xmrig"
+test ! -f "${ROOT_DIR}/dist/macUnmineable.app/Contents/Resources/runtime/miners/cpuminer-scash/minerd"
+
+echo "[verify] Rebuilding default app bundle"
+DOWNLOAD_MANAGED_MINERS=1 EMBED_MANAGED_MINERS=1 ./scripts/build_native_app.sh
 
 echo "[verify] OK"

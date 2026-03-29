@@ -16,7 +16,11 @@ PLIST_PATH="${CONTENTS_DIR}/Info.plist"
 SOURCE_FILE="${ROOT_DIR}/native/MacUnmineableNative.swift"
 RUNTIME_DIR="${RESOURCES_DIR}/runtime"
 VERSION_FILE="${ROOT_DIR}/VERSION"
+# Local app builds embed the managed miners by default so the generated bundle
+# works out of the box. Public source releases stay binary-free because the repo
+# does not commit those third-party payloads.
 DOWNLOAD_MANAGED_MINERS="${DOWNLOAD_MANAGED_MINERS:-1}"
+EMBED_MANAGED_MINERS="${EMBED_MANAGED_MINERS:-1}"
 
 if [[ ! -f "${SOURCE_FILE}" ]]; then
   echo "Missing source file: ${SOURCE_FILE}" >&2
@@ -89,15 +93,29 @@ swiftc \
 mkdir -p "${RUNTIME_DIR}/scripts" "${RUNTIME_DIR}/miners"
 # Only bundle runtime-facing scripts. Build/publish helpers stay in the repo.
 cp "${ROOT_DIR}/scripts/install_xmrig.sh" "${ROOT_DIR}/scripts/install_cpuminer_scash.sh" "${RUNTIME_DIR}/scripts/"
-if [[ -d "${ROOT_DIR}/miners/xmrig" ]]; then
-  cp -R "${ROOT_DIR}/miners/xmrig" "${RUNTIME_DIR}/miners/"
-fi
-if [[ -d "${ROOT_DIR}/miners/cpuminer-scash" ]]; then
-  cp -R "${ROOT_DIR}/miners/cpuminer-scash" "${RUNTIME_DIR}/miners/"
-fi
-if [[ -d "${ROOT_DIR}/miners/srbminer" ]]; then
-  cp -R "${ROOT_DIR}/miners/srbminer" "${RUNTIME_DIR}/miners/"
-fi
+
+stage_runtime_dir() {
+  local name="$1"
+  local binary_name="$2"
+  local source_dir="${ROOT_DIR}/miners/${name}"
+  local destination_dir="${RUNTIME_DIR}/miners/${name}"
+
+  [[ -d "${source_dir}" ]] || return 0
+
+  mkdir -p "${destination_dir}"
+
+  if [[ -f "${source_dir}/README.md" ]]; then
+    cp "${source_dir}/README.md" "${destination_dir}/README.md"
+  fi
+
+  if [[ "${EMBED_MANAGED_MINERS}" == "1" && -f "${source_dir}/${binary_name}" ]]; then
+    cp "${source_dir}/${binary_name}" "${destination_dir}/${binary_name}"
+  fi
+}
+
+stage_runtime_dir "xmrig" "xmrig"
+stage_runtime_dir "cpuminer-scash" "minerd"
+stage_runtime_dir "srbminer" "SRBMiner-MULTI"
 
 chmod +x "${APP_BIN}" || true
 chmod +x "${RUNTIME_DIR}"/scripts/install_*.sh || true
