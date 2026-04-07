@@ -2032,6 +2032,36 @@ enum SecondaryPanel: String, Identifiable {
     var id: String { rawValue }
 }
 
+enum SetupTab: String, CaseIterable, Identifiable {
+    case overview
+    case miners
+    case paths
+    case validation
+    case installer
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .overview: return "Overview"
+        case .miners: return "Miners"
+        case .paths: return "Paths"
+        case .validation: return "Validation"
+        case .installer: return "Installer"
+        }
+    }
+
+    var helpText: String {
+        switch self {
+        case .overview: return "Show runtime status, official miner support, and detected binaries."
+        case .miners: return "Show managed miner install and update actions."
+        case .paths: return "Show custom miner path overrides and related guidance."
+        case .validation: return "Show binary validation tools and validation output."
+        case .installer: return "Show installer task output."
+        }
+    }
+}
+
 struct DashboardCard<Content: View>: View {
     let padding: CGFloat
     let theme: DashboardTheme
@@ -2272,6 +2302,91 @@ struct HashrateSparkline: View {
     }
 }
 
+struct WrappedNote: View {
+    let text: String
+
+    var body: some View {
+        Text(text)
+            .foregroundStyle(.secondary)
+            .font(.system(size: 12))
+            .fixedSize(horizontal: false, vertical: true)
+            .textSelection(.enabled)
+    }
+}
+
+struct ReadOnlyLogPanel: View {
+    let text: String
+
+    var body: some View {
+        ScrollView([.vertical, .horizontal]) {
+            Text(text.isEmpty ? "No output yet." : text)
+                .font(.system(.body, design: .monospaced))
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .textSelection(.enabled)
+                .padding(12)
+        }
+        .frame(minHeight: 180)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color.primary.opacity(0.04))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+        )
+    }
+}
+
+struct SetupSection<Content: View>: View {
+    let title: String
+    let content: Content
+
+    init(title: String, @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(title)
+                .font(.system(size: 15, weight: .bold, design: .rounded))
+            content
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(Color.primary.opacity(0.035))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+        )
+    }
+}
+
+struct SetupTabButton: View {
+    let tab: SetupTab
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(tab.title)
+                .font(.system(size: 13, weight: .semibold, design: .rounded))
+                .foregroundStyle(isSelected ? Color.white : Color.primary.opacity(0.78))
+                .padding(.vertical, 8)
+                .frame(maxWidth: .infinity)
+                .background(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(isSelected ? Color.accentColor : Color.primary.opacity(0.06))
+                )
+        }
+        .buttonStyle(.plain)
+        .help(tab.helpText)
+    }
+}
+
 struct CoinPickerSheetView: View {
     @ObservedObject var model: NativeAppModel
     @Environment(\.dismiss) private var dismiss
@@ -2353,137 +2468,150 @@ struct CoinPickerSheetView: View {
 struct SetupSheetView: View {
     @ObservedObject var model: NativeAppModel
     @Environment(\.dismiss) private var dismiss
+    @State private var selectedTab: SetupTab = .overview
 
     var body: some View {
         let bundled = model.bundledBinaryStatus()
         NavigationStack {
-            Form {
-                Section("Apple Silicon Runtime") {
-                    Text(model.appleSiliconMiningSummary)
-                        .foregroundStyle(.secondary)
-                        .font(.system(size: 12))
-                }
-
-                Section("Official Miner Matrix") {
-                    Text("Checked against official upstream releases and startup behavior on March 24, 2026.")
-                        .foregroundStyle(.secondary)
-                        .font(.system(size: 12))
-                    Text("XMRig: macOS arm64 release available")
-                    Text("cpuminer-scash: macOS Sonoma arm64 release available")
-                    Text("UselethMiner: official macOS arm64 package exists, but upstream requires installation to /usr/local/uselethminer; it is not a managed in-app backend")
-                    Text("SRBMiner-MULTI: no normal macOS release asset")
-                    Text("nanominer: latest release is Linux/Windows only")
-                    Text("BzMiner: latest release is Linux/Windows only")
-                    Text("OneZeroMiner: generic tarball is Linux ELF x86-64, not macOS")
-                }
-
-                Section("Installed Miner Binaries") {
-                    Text("XMRig installed: \(bundled[.xmrig] == true ? "Yes" : "No")")
-                    Text("cpuminer-scash installed: \(bundled[.cpuminerScash] == true ? "Yes" : "No")")
-                    Text("UselethMiner detected at /usr/local/uselethminer: \(bundled[.uselethminer] == true ? "Yes" : "No")")
-                    Text("Custom SRBMiner present: \(model.hasUsableSRBMinerBinary ? "Yes" : "No")")
-                }
-
-                Section("Managed Miners") {
-                    HStack(spacing: 10) {
-                        Button("Install / Update XMRig") {
-                            model.install(target: .xmrig, dryRun: false)
+            VStack(spacing: 0) {
+                VStack(spacing: 12) {
+                    HStack(spacing: 8) {
+                        ForEach(SetupTab.allCases) { tab in
+                            SetupTabButton(tab: tab, isSelected: selectedTab == tab) {
+                                selectedTab = tab
+                            }
                         }
-                        .buttonStyle(.bordered)
-                        .disabled(model.isInstalling || model.isMining)
-                        .help("Download or refresh the managed XMRig binary into the local runtime.")
-
-                        Button("Check XMRig Release") {
-                            model.install(target: .xmrig, dryRun: true)
-                        }
-                        .buttonStyle(.bordered)
-                        .disabled(model.isInstalling || model.isMining)
-                        .help("Resolve and display the upstream XMRig release without changing local files.")
                     }
+                    .padding(.horizontal, 18)
+                    .padding(.top, 18)
+                }
 
-                    HStack(spacing: 10) {
-                        Button("Install / Update cpuminer-scash") {
-                            model.install(target: .cpuminerScash, dryRun: false)
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        switch selectedTab {
+                        case .overview:
+                            SetupSection(title: "Apple Silicon Runtime") {
+                                WrappedNote(text: model.appleSiliconMiningSummary)
+                                WrappedNote(text: model.coinCatalogStatusText)
+                            }
+
+                            SetupSection(title: "Official Miner Matrix") {
+                                WrappedNote(text: "Checked against official upstream releases and startup behavior on March 24, 2026.")
+                                WrappedNote(text: "XMRig: macOS arm64 release available")
+                                WrappedNote(text: "cpuminer-scash: macOS Sonoma arm64 release available")
+                                WrappedNote(text: "UselethMiner: official macOS arm64 package exists, but upstream requires installation to /usr/local/uselethminer; it is not a managed in-app backend")
+                                WrappedNote(text: "SRBMiner-MULTI: no normal macOS release asset")
+                                WrappedNote(text: "nanominer: latest release is Linux/Windows only")
+                                WrappedNote(text: "BzMiner: latest release is Linux/Windows only")
+                                WrappedNote(text: "OneZeroMiner: generic tarball is Linux ELF x86-64, not macOS")
+                            }
+
+                            SetupSection(title: "Installed Miner Binaries") {
+                                LabeledContent("XMRig installed", value: bundled[.xmrig] == true ? "Yes" : "No")
+                                LabeledContent("cpuminer-scash installed", value: bundled[.cpuminerScash] == true ? "Yes" : "No")
+                                LabeledContent("UselethMiner detected", value: bundled[.uselethminer] == true ? "Yes" : "No")
+                                WrappedNote(text: "Expected external path: /usr/local/uselethminer/uselethminer")
+                                LabeledContent("Custom SRBMiner present", value: model.hasUsableSRBMinerBinary ? "Yes" : "No")
+                            }
+
+                        case .miners:
+                            SetupSection(title: "Managed Miners") {
+                                HStack(spacing: 10) {
+                                    Button("Install / Update XMRig") {
+                                        model.install(target: .xmrig, dryRun: false)
+                                    }
+                                    .buttonStyle(.bordered)
+                                    .disabled(model.isInstalling || model.isMining)
+                                    .help("Download or refresh the managed XMRig binary into the local runtime.")
+
+                                    Button("Check XMRig Release") {
+                                        model.install(target: .xmrig, dryRun: true)
+                                    }
+                                    .buttonStyle(.bordered)
+                                    .disabled(model.isInstalling || model.isMining)
+                                    .help("Resolve and display the upstream XMRig release without changing local files.")
+                                }
+
+                                HStack(spacing: 10) {
+                                    Button("Install / Update cpuminer-scash") {
+                                        model.install(target: .cpuminerScash, dryRun: false)
+                                    }
+                                    .buttonStyle(.bordered)
+                                    .disabled(model.isInstalling || model.isMining)
+                                    .help("Download or refresh the managed cpuminer-scash binary into the local runtime.")
+
+                                    Button("Check cpuminer-scash Release") {
+                                        model.install(target: .cpuminerScash, dryRun: true)
+                                    }
+                                    .buttonStyle(.bordered)
+                                    .disabled(model.isInstalling || model.isMining)
+                                    .help("Resolve and display the upstream cpuminer-scash release without changing local files.")
+                                }
+
+                                WrappedNote(text: "Managed miner downloads are verified before install. Tarball-based miners use upstream SHA256 manifests. UselethMiner is excluded here because its upstream macOS package expects a system install path instead of an app-managed runtime copy.")
+                            }
+
+                        case .paths:
+                            SetupSection(title: "Custom Miner Paths") {
+                                pathEditor(
+                                    title: "XMRig Binary Path",
+                                    text: $model.xmrigPathOverride,
+                                    onSave: { model.savePathOverride(target: .xmrig) },
+                                    onClear: { model.clearPathOverride(target: .xmrig) }
+                                )
+                                pathEditor(
+                                    title: "SRBMiner Binary Path",
+                                    text: $model.srbminerPathOverride,
+                                    onSave: { model.savePathOverride(target: .srbminer) },
+                                    onClear: { model.clearPathOverride(target: .srbminer) }
+                                )
+                                WrappedNote(text: "Only add SRBMiner here if you already have a macOS-compatible custom build. The app no longer surfaces it as a normal Apple Silicon installer target.")
+                                WrappedNote(text: "UselethMiner is only recognized when the official upstream package has installed it to /usr/local/uselethminer.")
+                                WrappedNote(text: "Built-in Apple Silicon miners are limited to the managed backends the app can verify and update safely.")
+                            }
+
+                        case .validation:
+                            SetupSection(title: "Validation") {
+                                Button("Validate Binaries") {
+                                    model.validateMiners()
+                                }
+                                .buttonStyle(.bordered)
+                                .disabled(model.isInstalling)
+                                .help("Check every configured miner path for existence, executability, architecture, and version output.")
+
+                                Text(model.validationStatusText)
+                                    .foregroundStyle(.secondary)
+                                    .font(.system(size: 12))
+                                ReadOnlyLogPanel(text: model.validationLogs)
+                            }
+
+                        case .installer:
+                            SetupSection(title: "Installer Output") {
+                                Text(model.installStatusText)
+                                    .foregroundStyle(.secondary)
+                                    .font(.system(size: 12))
+                                ReadOnlyLogPanel(text: model.installLogs)
+                            }
                         }
-                        .buttonStyle(.bordered)
-                        .disabled(model.isInstalling || model.isMining)
-                        .help("Download or refresh the managed cpuminer-scash binary into the local runtime.")
-
-                        Button("Check cpuminer-scash Release") {
-                            model.install(target: .cpuminerScash, dryRun: true)
-                        }
-                        .buttonStyle(.bordered)
-                        .disabled(model.isInstalling || model.isMining)
-                        .help("Resolve and display the upstream cpuminer-scash release without changing local files.")
                     }
-
-                    Text("Managed miner downloads are verified before install. Tarball-based miners use upstream SHA256 manifests. UselethMiner is excluded here because its upstream macOS package expects a system install path instead of an app-managed runtime copy.")
-                        .foregroundStyle(.secondary)
-                        .font(.system(size: 12))
+                    .padding(18)
                 }
 
-                Section("Custom Miner Paths") {
-                    pathEditor(
-                        title: "XMRig Binary Path",
-                        text: $model.xmrigPathOverride,
-                        onSave: { model.savePathOverride(target: .xmrig) },
-                        onClear: { model.clearPathOverride(target: .xmrig) }
-                    )
-                    pathEditor(
-                        title: "SRBMiner Binary Path",
-                        text: $model.srbminerPathOverride,
-                        onSave: { model.savePathOverride(target: .srbminer) },
-                        onClear: { model.clearPathOverride(target: .srbminer) }
-                    )
-                    Text("Only add SRBMiner here if you already have a macOS-compatible custom build. The app no longer surfaces it as a normal Apple Silicon installer target.")
-                        .foregroundStyle(.secondary)
-                        .font(.system(size: 12))
-                    Text("UselethMiner is only recognized when the official upstream package has installed it to /usr/local/uselethminer.")
-                        .foregroundStyle(.secondary)
-                        .font(.system(size: 12))
-                    Text("Built-in Apple Silicon miners are limited to the managed backends the app can verify and update safely.")
-                        .foregroundStyle(.secondary)
-                        .font(.system(size: 12))
-                }
+                Divider()
 
-                Section("Validation") {
-                    Button("Validate Binaries") {
-                        model.validateMiners()
-                    }
-                    .buttonStyle(.bordered)
-                    .disabled(model.isInstalling)
-                    .help("Check every configured miner path for existence, executability, architecture, and version output.")
-
-                    Text(model.validationStatusText)
-                        .foregroundStyle(.secondary)
-                        .font(.system(size: 12))
-                    TextEditor(text: $model.validationLogs)
-                        .font(.system(.body, design: .monospaced))
-                        .frame(minHeight: 180)
-                        .disabled(true)
-                }
-
-                Section("Installer Output") {
-                    Text(model.installStatusText)
-                        .foregroundStyle(.secondary)
-                        .font(.system(size: 12))
-                    TextEditor(text: $model.installLogs)
-                        .font(.system(.body, design: .monospaced))
-                        .frame(minHeight: 200)
-                        .disabled(true)
-                }
-            }
-            .navigationTitle("Setup")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
+                HStack {
+                    Spacer()
                     Button("Close") {
                         dismiss()
                     }
+                    .buttonStyle(.bordered)
                     .help("Close the setup window.")
                 }
+                .padding(16)
             }
+            .navigationTitle("Setup")
         }
-        .frame(minWidth: 780, minHeight: 720)
+        .frame(minWidth: 960, minHeight: 760)
     }
 
     @ViewBuilder
@@ -2497,9 +2625,10 @@ struct SetupSheetView: View {
             Text(title)
                 .font(.system(size: 12))
                 .foregroundStyle(.secondary)
+            TextField("/absolute/path/to/binary", text: text)
+                .help("Paste an absolute path to a native macOS Mach-O miner binary.")
             HStack(spacing: 10) {
-                TextField("/absolute/path/to/binary", text: text)
-                    .help("Paste an absolute path to a native macOS Mach-O miner binary.")
+                Spacer()
                 Button("Save", action: onSave)
                     .buttonStyle(.bordered)
                     .help("Save this custom binary path after validating that it is executable.")
@@ -2717,7 +2846,7 @@ struct MineDashboardView: View {
                         NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
                         NSApp.activate(ignoringOtherApps: true)
                     }
-                    IconChromeButton(systemName: "folder.fill", theme: theme, helpText: "Open miner setup, validation, and install tools.") {
+                    IconChromeButton(systemName: "line.3.horizontal.decrease.circle.fill", theme: theme, helpText: "Open setup tabs for overview, miner management, paths, validation, and installer tools.") {
                         activePanel = .setup
                     }
                 }

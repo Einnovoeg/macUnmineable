@@ -18,8 +18,11 @@
 - `bash`
 - `curl`
 - `python3`
+- Python package `Pillow`
 - `shasum`
 - `tar`
+- `sips`
+- `iconutil`
 
 ## Verification
 

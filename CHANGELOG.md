@@ -4,6 +4,35 @@ All notable changes to this project are documented in this file.
 
 This project follows Semantic Versioning for release tags.
 
+## [0.4.6] - 2026-04-07
+
+### Fixed
+
+- Reworked the Setup sheet layout to stop long notes and validation content from
+  clipping horizontally in the currently open panel.
+- Split the Setup sheet into tabbed sections so overview, miner management,
+  path overrides, validation, and installer output are easier to navigate.
+- Converted long setup notes to wrapped selectable text so the panel remains
+  readable at normal window sizes.
+- Replaced the raw `TextEditor` log panes in Setup with read-only scrollable log
+  panels that handle long validation and installer output more cleanly.
+- Simplified custom path editing rows so the action buttons no longer get
+  squeezed against the text field.
+- Replaced the top-bar folder shortcut with a controls/settings-style icon that
+  matches the function of the setup panel more closely.
+
+### Added
+
+- Added a generated macOS `.icns` app icon derived from the mint unMineable
+  “U” language but adapted into an original rounded-square application icon.
+- Integrated icon generation into the native app bundle build pipeline.
+
+### Verification
+
+- Captured the live app window and used that screenshot to drive the layout
+  fixes in the Setup sheet.
+- Rebuilt and smoke-launched the updated app bundle successfully.
+
 ## [0.4.5] - 2026-04-07
 
 ### Fixed

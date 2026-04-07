@@ -16,6 +16,10 @@ PLIST_PATH="${CONTENTS_DIR}/Info.plist"
 SOURCE_FILE="${ROOT_DIR}/native/MacUnmineableNative.swift"
 RUNTIME_DIR="${RESOURCES_DIR}/runtime"
 VERSION_FILE="${ROOT_DIR}/VERSION"
+ICON_SOURCE_SCRIPT="${ROOT_DIR}/scripts/generate_app_icon.py"
+ICON_WORK_DIR="${DIST_DIR}/AppIcon.iconset"
+ICON_PNG="${DIST_DIR}/AppIcon-1024.png"
+ICON_ICNS="${RESOURCES_DIR}/AppIcon.icns"
 # Local app builds embed the managed miners by default so the generated bundle
 # works out of the box. Public source releases stay binary-free because the repo
 # does not commit those third-party payloads.
@@ -64,6 +68,8 @@ cat > "${PLIST_PATH}" <<EOF
     <string>org.macunmineable.native</string>
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
     <key>CFBundleName</key>
     <string>macUnmineable</string>
     <key>CFBundlePackageType</key>
@@ -79,6 +85,23 @@ cat > "${PLIST_PATH}" <<EOF
   </dict>
 </plist>
 EOF
+
+if [[ -f "${ICON_SOURCE_SCRIPT}" ]]; then
+  python3 "${ICON_SOURCE_SCRIPT}" --output "${ICON_PNG}" >/dev/null
+  rm -rf "${ICON_WORK_DIR}"
+  mkdir -p "${ICON_WORK_DIR}"
+  sips -z 16 16 "${ICON_PNG}" --out "${ICON_WORK_DIR}/icon_16x16.png" >/dev/null
+  sips -z 32 32 "${ICON_PNG}" --out "${ICON_WORK_DIR}/icon_16x16@2x.png" >/dev/null
+  sips -z 32 32 "${ICON_PNG}" --out "${ICON_WORK_DIR}/icon_32x32.png" >/dev/null
+  sips -z 64 64 "${ICON_PNG}" --out "${ICON_WORK_DIR}/icon_32x32@2x.png" >/dev/null
+  sips -z 128 128 "${ICON_PNG}" --out "${ICON_WORK_DIR}/icon_128x128.png" >/dev/null
+  sips -z 256 256 "${ICON_PNG}" --out "${ICON_WORK_DIR}/icon_128x128@2x.png" >/dev/null
+  sips -z 256 256 "${ICON_PNG}" --out "${ICON_WORK_DIR}/icon_256x256.png" >/dev/null
+  sips -z 512 512 "${ICON_PNG}" --out "${ICON_WORK_DIR}/icon_256x256@2x.png" >/dev/null
+  sips -z 512 512 "${ICON_PNG}" --out "${ICON_WORK_DIR}/icon_512x512.png" >/dev/null
+  cp "${ICON_PNG}" "${ICON_WORK_DIR}/icon_512x512@2x.png"
+  iconutil -c icns "${ICON_WORK_DIR}" -o "${ICON_ICNS}"
+fi
 
 swiftc \
   -O \
