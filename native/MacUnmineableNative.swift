@@ -9,11 +9,15 @@ import SwiftUI
 
 // MARK: - Domain Models
 
-struct CoinOption: Identifiable, Hashable {
+struct CoinOption: Identifiable, Hashable, Codable {
     let symbol: String
     let name: String
 
     var id: String { symbol }
+
+    var displayLabel: String {
+        "\(symbol) - \(name)"
+    }
 }
 
 // Each algorithm describes the unMineable pool endpoint plus the backend-
@@ -254,6 +258,7 @@ private let prefAutoInstallXMRigKey = "macunmineable.pref.autoInstallXmrig"
 private let prefAutoValidateOnLaunchKey = "macunmineable.pref.autoValidateOnLaunch"
 private let prefAppearanceModeKey = "macunmineable.pref.appearanceMode"
 private let prefPaletteKey = "macunmineable.pref.palette"
+private let coinCatalogCacheKey = "macunmineable.coinCatalogCache.v1"
 private let supportURLString = "https://buymeacoffee.com/einnovoeg"
 
 private enum AppReleaseInfo {
@@ -302,6 +307,7 @@ final class NativeAppModel: ObservableObject {
     @Published var warningText: String = ""
     @Published var systemText: String = ""
     @Published var minerText: String = ""
+    @Published var coinCatalogStatusText: String = "Using bundled fallback catalog (8 coins)."
     @Published var minerLogs: String = ""
     @Published var localHashrateText: String = "--"
     @Published var effectiveHashrateText: String = "--"
@@ -348,6 +354,7 @@ final class NativeAppModel: ObservableObject {
         configURL = appSupportURL.appendingPathComponent("local_config.json", isDirectory: false)
         systemText = "\(ProcessInfo.processInfo.operatingSystemVersionString) | \(isAppleSilicon() ? "Apple Silicon" : "Intel")"
 
+        loadCachedCoins()
         bootstrapRuntime()
         loadConfig()
         loadFormState()
@@ -498,6 +505,11 @@ final class NativeAppModel: ObservableObject {
             ?? algorithms.first(where: { $0.id == selectedAlgorithmID })
     }
 
+    var selectedCoin: CoinOption? {
+        coins.first(where: { $0.symbol == coinSymbol })
+            ?? fallbackCoins.first(where: { $0.symbol == coinSymbol })
+    }
+
     var displayedBackendName: String {
         if isMining, minerBackend != .auto {
             return minerBackend.displayName
@@ -531,6 +543,15 @@ final class NativeAppModel: ObservableObject {
 
     func handleSimpleFormChange() {
         saveFormState()
+    }
+
+    func selectCoin(_ coin: CoinOption) {
+        coinSymbol = coin.symbol
+        handleSimpleFormChange()
+    }
+
+    func refreshCoinCatalog() {
+        fetchCoins(userInitiated: true)
     }
 
     func displayWallet() -> String {
@@ -1613,6 +1634,41 @@ final class NativeAppModel: ObservableObject {
         }
     }
 
+    private func loadCachedCoins() {
+        guard let data = defaults.data(forKey: coinCatalogCacheKey),
+              let cached = try? JSONDecoder().decode([CoinOption].self, from: data)
+        else {
+            coinCatalogStatusText = "Using bundled fallback catalog (\(fallbackCoins.count) coins)."
+            return
+        }
+
+        let normalized = Self.normalizeCoinCatalog(cached)
+        guard !normalized.isEmpty else {
+            coinCatalogStatusText = "Using bundled fallback catalog (\(fallbackCoins.count) coins)."
+            return
+        }
+
+        coins = normalized
+        coinCatalogStatusText = "Loaded cached coin catalog (\(normalized.count) coins)."
+    }
+
+    private func saveCoinCache(_ mapped: [CoinOption]) {
+        guard let data = try? JSONEncoder().encode(mapped) else { return }
+        defaults.set(data, forKey: coinCatalogCacheKey)
+    }
+
+    nonisolated private static func normalizeCoinCatalog(_ rawCoins: [CoinOption]) -> [CoinOption] {
+        rawCoins
+            .reduce(into: [String: CoinOption]()) { out, coin in
+                let symbol = coin.symbol.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+                let name = coin.name.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !symbol.isEmpty else { return }
+                out[symbol] = CoinOption(symbol: symbol, name: name.isEmpty ? symbol : name)
+            }
+            .values
+            .sorted { $0.symbol < $1.symbol }
+    }
+
     // Installer scripts stay inside the read-only app bundle. The mutable
     // runtime directory only stores downloaded miner payloads and local config.
     private func bundledInstallerScriptURL(target: InstallTarget) -> URL? {
@@ -1694,40 +1750,64 @@ final class NativeAppModel: ObservableObject {
         try fileManager.setAttributes([.posixPermissions: NSNumber(value: updated)], ofItemAtPath: path)
     }
 
-    private func fetchCoins() {
+    private func fetchCoins(userInitiated: Bool = false) {
         // Coin discovery is best-effort only. The launcher keeps a safe fallback
         // list locally and replaces it only when the unMineable API returns a
         // bounded successful response.
+        if userInitiated {
+            coinCatalogStatusText = "Refreshing coin catalog..."
+        }
         guard let url = URL(string: "https://api.unminable.com/v5/coin") else { return }
         let configuration = URLSessionConfiguration.ephemeral
         configuration.timeoutIntervalForRequest = 10
         configuration.timeoutIntervalForResource = 20
         URLSession(configuration: configuration).dataTask(with: url) { [weak self] data, response, _ in
-            guard let self, let data else { return }
-            guard let httpResponse = response as? HTTPURLResponse, (200 ..< 300).contains(httpResponse.statusCode) else {
+            guard let self, let data else {
+                if userInitiated {
+                    Task { @MainActor in
+                        self?.coinCatalogStatusText = "Could not refresh coin catalog. Keeping local catalog (\(self?.coins.count ?? fallbackCoins.count) coins)."
+                    }
+                }
                 return
             }
-            guard data.count <= 1_000_000 else { return }
+            guard let httpResponse = response as? HTTPURLResponse, (200 ..< 300).contains(httpResponse.statusCode) else {
+                if userInitiated {
+                    Task { @MainActor in
+                        self.coinCatalogStatusText = "Coin catalog request failed. Keeping local catalog (\(self.coins.count) coins)."
+                    }
+                }
+                return
+            }
+            guard data.count <= 1_000_000 else {
+                if userInitiated {
+                    Task { @MainActor in
+                        self.coinCatalogStatusText = "Coin catalog response was unexpectedly large. Keeping local catalog (\(self.coins.count) coins)."
+                    }
+                }
+                return
+            }
             guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                   let rawCoins = object["data"] as? [[String: Any]]
             else {
+                if userInitiated {
+                    Task { @MainActor in
+                        self.coinCatalogStatusText = "Coin catalog response could not be parsed. Keeping local catalog (\(self.coins.count) coins)."
+                    }
+                }
                 return
             }
 
-            let mapped: [CoinOption] = rawCoins.compactMap { row in
+            let mapped: [CoinOption] = Self.normalizeCoinCatalog(rawCoins.compactMap { row in
                 guard let symbol = row["symbol"] as? String, !symbol.isEmpty else { return nil }
                 let name = (row["name"] as? String) ?? symbol
-                return CoinOption(symbol: symbol.uppercased(), name: name)
-            }
-            .reduce(into: [String: CoinOption]()) { out, coin in
-                out[coin.symbol] = coin
-            }
-            .values
-            .sorted { $0.symbol < $1.symbol }
+                return CoinOption(symbol: symbol, name: name)
+            })
 
             guard !mapped.isEmpty else { return }
             Task { @MainActor in
                 self.coins = mapped
+                self.saveCoinCache(mapped)
+                self.coinCatalogStatusText = "Loaded \(mapped.count) coins from unMineable."
                 if !mapped.contains(where: { $0.symbol == self.coinSymbol }) {
                     self.coinSymbol = mapped.first?.symbol ?? "BTC"
                 }
@@ -1943,6 +2023,7 @@ struct MenuBarControlsView: View {
 // MARK: - Secondary Windows
 
 enum SecondaryPanel: String, Identifiable {
+    case coinPicker
     case setup
     case advanced
     case logs
@@ -2083,14 +2164,23 @@ struct FieldShell<Content: View>: View {
 
 struct SelectionFieldLabel: View {
     let text: String
+    var detail: String? = nil
     let theme: DashboardTheme
 
     var body: some View {
         HStack(spacing: 10) {
-            Text(text)
-                .font(.system(size: 15, weight: .semibold, design: .rounded))
-                .foregroundStyle(theme.primaryText)
-                .lineLimit(1)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(text)
+                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                    .foregroundStyle(theme.primaryText)
+                    .lineLimit(1)
+                if let detail, !detail.isEmpty {
+                    Text(detail)
+                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .foregroundStyle(theme.tertiaryText)
+                        .lineLimit(1)
+                }
+            }
             Spacer()
             Image(systemName: "chevron.down")
                 .font(.system(size: 11, weight: .bold))
@@ -2179,6 +2269,84 @@ struct HashrateSparkline: View {
             }
         }
         .frame(height: 34)
+    }
+}
+
+struct CoinPickerSheetView: View {
+    @ObservedObject var model: NativeAppModel
+    @Environment(\.dismiss) private var dismiss
+    @State private var searchText: String = ""
+
+    private var filteredCoins: [CoinOption] {
+        let trimmed = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return model.coins }
+        return model.coins.filter { coin in
+            coin.symbol.localizedCaseInsensitiveContains(trimmed)
+                || coin.name.localizedCaseInsensitiveContains(trimmed)
+        }
+    }
+
+    var body: some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(alignment: .firstTextBaseline) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(model.coinCatalogStatusText)
+                            .font(.system(size: 12, weight: .medium, design: .rounded))
+                            .foregroundStyle(.secondary)
+                        Text("\(filteredCoins.count) of \(model.coins.count) coins")
+                            .font(.system(size: 11, weight: .medium, design: .rounded))
+                            .foregroundStyle(.tertiary)
+                    }
+                    Spacer()
+                    Button("Refresh Catalog") {
+                        model.refreshCoinCatalog()
+                    }
+                    .buttonStyle(.bordered)
+                    .help("Reload the payout coin catalog from unMineable.")
+                }
+
+                TextField("Search by symbol or name", text: $searchText)
+                    .textFieldStyle(.roundedBorder)
+                    .help("Filter the payout coin catalog by symbol or coin name.")
+
+                List(filteredCoins) { coin in
+                    Button {
+                        model.selectCoin(coin)
+                        dismiss()
+                    } label: {
+                        HStack(spacing: 12) {
+                            Text(coin.symbol)
+                                .font(.system(size: 14, weight: .bold, design: .rounded))
+                                .frame(width: 72, alignment: .leading)
+                            Text(coin.name)
+                                .font(.system(size: 14, weight: .medium, design: .rounded))
+                                .foregroundStyle(.primary)
+                            Spacer()
+                            if coin.symbol == model.coinSymbol {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundStyle(.green)
+                            }
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .help("Select \(coin.displayLabel) as the payout coin.")
+                }
+                .listStyle(.inset)
+            }
+            .padding(16)
+            .navigationTitle("Choose Coin")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Close") {
+                        dismiss()
+                    }
+                    .help("Close the coin picker.")
+                }
+            }
+        }
+        .frame(minWidth: 560, minHeight: 640)
     }
 }
 
@@ -2589,22 +2757,23 @@ struct MineDashboardView: View {
                         Text(model.appleSiliconMiningSummary)
                             .font(.system(size: 12, weight: .medium, design: .rounded))
                             .foregroundStyle(theme.secondaryText)
+                        Text(model.coinCatalogStatusText)
+                            .font(.system(size: 12, weight: .medium, design: .rounded))
+                            .foregroundStyle(theme.tertiaryText)
 
                         HStack(alignment: .top, spacing: 14) {
                             FieldShell(title: "Coin", theme: theme) {
-                                Menu {
-                                    ForEach(model.coins) { coin in
-                                        Button("\(coin.symbol) - \(coin.name)") {
-                                            model.coinSymbol = coin.symbol
-                                            model.handleSimpleFormChange()
-                                        }
-                                    }
-                                }
-                                label: {
-                                    SelectionFieldLabel(text: model.coinSymbol, theme: theme)
+                                Button {
+                                    activePanel = .coinPicker
+                                } label: {
+                                    SelectionFieldLabel(
+                                        text: model.coinSymbol,
+                                        detail: model.selectedCoin?.name,
+                                        theme: theme
+                                    )
                                 }
                                 .buttonStyle(.plain)
-                                .help("Choose the payout coin. This does not change the miner backend by itself.")
+                                .help("Open the full searchable payout coin catalog from unMineable.")
                             }
 
                             FieldShell(title: "Algorithm", theme: theme) {
@@ -2793,6 +2962,8 @@ struct NativeContentView: View {
             )
             .sheet(item: $activePanel) { panel in
                 switch panel {
+                case .coinPicker:
+                    CoinPickerSheetView(model: model)
                 case .setup:
                     SetupSheetView(model: model)
                 case .advanced:

@@ -3,7 +3,7 @@
 `macUnmineable` is a native SwiftUI macOS app that wraps the unMineable mining
 workflow into a wallet-first GUI for Apple Silicon.
 
-Current source release: `v0.4.4`
+Current source release: `v0.4.5`
 
 The app lets you:
 
@@ -12,6 +12,8 @@ The app lets you:
 3. Choose a supported mining algorithm.
 4. Start and stop the backend from a native macOS window.
 5. Install, update, validate, and inspect managed miners from secondary panels.
+6. Search the full live unMineable coin catalog from a dedicated picker that
+   caches the last successful result locally.
 
 ## Current support
 

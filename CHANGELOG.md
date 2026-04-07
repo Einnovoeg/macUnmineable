@@ -4,6 +4,24 @@ All notable changes to this project are documented in this file.
 
 This project follows Semantic Versioning for release tags.
 
+## [0.4.5] - 2026-04-07
+
+### Fixed
+
+- Reworked coin selection so the app no longer depends on a long inline menu
+  for the unMineable coin catalog.
+- Added a dedicated searchable coin picker sheet so the full live catalog is
+  actually selectable from the GUI.
+- Cached the last successful unMineable coin catalog locally so the app can
+  keep a full coin list between launches instead of dropping back to the small
+  bundled fallback list whenever the network fetch is unavailable.
+
+### Verification
+
+- Confirmed the live unMineable `/v5/coin` response currently returns 84 coins.
+- Confirmed the Swift `URLSession` fetch path parses the live catalog
+  successfully.
+
 ## [0.4.4] - 2026-03-29
 
 ### Changed
