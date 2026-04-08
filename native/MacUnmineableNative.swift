@@ -2182,6 +2182,36 @@ enum SetupTab: String, CaseIterable, Identifiable {
     }
 }
 
+enum MainDashboardTab: String, CaseIterable, Identifiable {
+    case mine
+    case wallet
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .mine: return "Mine"
+        case .wallet: return "Wallet"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .mine: return "bolt.fill"
+        case .wallet: return "chart.bar.fill"
+        }
+    }
+
+    var helpText: String {
+        switch self {
+        case .mine:
+            return "Show the mining form, hashrate, and session controls."
+        case .wallet:
+            return "Show wallet balance, payout threshold, and aggregate wallet stats from unMineable."
+        }
+    }
+}
+
 struct DashboardCard<Content: View>: View {
     let padding: CGFloat
     let theme: DashboardTheme
@@ -2504,6 +2534,67 @@ struct SetupTabButton: View {
         }
         .buttonStyle(.plain)
         .help(tab.helpText)
+    }
+}
+
+struct MainDashboardTabButton: View {
+    let tab: MainDashboardTab
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                Image(systemName: tab.systemImage)
+                    .font(.system(size: 12, weight: .bold))
+                Text(tab.title)
+                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+            }
+            .foregroundStyle(isSelected ? Color.white : Color.primary.opacity(0.8))
+            .padding(.vertical, 8)
+            .frame(maxWidth: .infinity)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(isSelected ? Color.accentColor : Color.primary.opacity(0.06))
+            )
+        }
+        .buttonStyle(.plain)
+        .help(tab.helpText)
+    }
+}
+
+struct DashboardHeaderView: View {
+    @ObservedObject var model: NativeAppModel
+    @Binding var selectedTab: MainDashboardTab
+    @Binding var activePanel: SecondaryPanel?
+    let theme: DashboardTheme
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Text("macUnmineable")
+                .font(.system(size: 14, weight: .semibold, design: .rounded))
+                .foregroundStyle(theme.secondaryText)
+
+            HStack(spacing: 8) {
+                ForEach(MainDashboardTab.allCases) { tab in
+                    MainDashboardTabButton(tab: tab, isSelected: selectedTab == tab) {
+                        selectedTab = tab
+                    }
+                }
+            }
+            .frame(maxWidth: 320)
+
+            Spacer()
+
+            PillView(text: model.isOnline ? "Online" : "Offline", running: model.isOnline, theme: theme)
+            IconChromeButton(systemName: "paintpalette.fill", theme: theme, helpText: "Open appearance settings.") {
+                NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+                NSApp.activate(ignoringOtherApps: true)
+            }
+            IconChromeButton(systemName: "line.3.horizontal.decrease.circle.fill", theme: theme, helpText: "Open setup tabs for overview, miner management, paths, validation, and installer tools.") {
+                activePanel = .setup
+            }
+        }
     }
 }
 
@@ -2971,21 +3062,6 @@ struct MineDashboardView: View {
     var body: some View {
         ScrollView(showsIndicators: false) {
             VStack(spacing: 16) {
-                HStack(spacing: 10) {
-                    Text("macUnmineable")
-                        .font(.system(size: 14, weight: .semibold, design: .rounded))
-                        .foregroundStyle(theme.secondaryText)
-                    Spacer()
-                    PillView(text: model.isOnline ? "Online" : "Offline", running: model.isOnline, theme: theme)
-                    IconChromeButton(systemName: "paintpalette.fill", theme: theme, helpText: "Open appearance settings.") {
-                        NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
-                        NSApp.activate(ignoringOtherApps: true)
-                    }
-                    IconChromeButton(systemName: "line.3.horizontal.decrease.circle.fill", theme: theme, helpText: "Open setup tabs for overview, miner management, paths, validation, and installer tools.") {
-                        activePanel = .setup
-                    }
-                }
-
                 DashboardCard(theme: theme) {
                     HStack(alignment: .top, spacing: 16) {
                         VStack(alignment: .leading, spacing: 4) {
@@ -3004,7 +3080,6 @@ struct MineDashboardView: View {
                     VStack(alignment: .leading, spacing: 6) {
                         SessionLine(label: "Address", value: model.displayWallet(), theme: theme, helpText: model.walletAddress.isEmpty ? "Wallet address is not set." : model.walletAddress)
                         SessionLine(label: "Coin", value: model.coinSymbol, theme: theme)
-                        SessionLine(label: "Network", value: model.walletResolvedNetworkText, theme: theme, helpText: "Network reported by unMineable for the selected wallet and coin.")
                         SessionLine(label: "Algorithm", value: model.selectedAlgorithm?.label ?? "-", theme: theme)
                         SessionLine(label: "Device", value: model.hardware.displayName, theme: theme)
                         SessionLine(label: "Backend", value: model.displayedBackendName, theme: theme)
@@ -3125,49 +3200,6 @@ struct MineDashboardView: View {
                     }
                 }
 
-                DashboardCard(theme: theme) {
-                    VStack(alignment: .leading, spacing: 16) {
-                        HStack(alignment: .firstTextBaseline, spacing: 12) {
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text("Wallet Stats")
-                                    .font(.system(size: 16, weight: .bold, design: .rounded))
-                                    .foregroundStyle(theme.primaryText)
-                                Text(model.walletStatsStatusText)
-                                    .font(.system(size: 12, weight: .medium, design: .rounded))
-                                    .foregroundStyle(theme.secondaryText)
-                                    .lineLimit(2)
-                            }
-                            Spacer()
-                            Button(model.isRefreshingWalletStats ? "Refreshing..." : "Refresh") {
-                                model.refreshWalletStatsNow()
-                            }
-                            .buttonStyle(.bordered)
-                            .disabled(model.isRefreshingWalletStats || model.walletAddress.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                            .help("Refresh wallet balance, threshold, and aggregate unMineable wallet activity.")
-                        }
-
-                        HStack(alignment: .bottom, spacing: 20) {
-                            MetricBlock(title: "Current Balance", value: model.walletBalanceText, theme: theme)
-                            MetricBlock(title: "Threshold", value: model.walletThresholdText, theme: theme)
-                            Spacer(minLength: 0)
-                        }
-
-                        VStack(alignment: .leading, spacing: 6) {
-                            SessionLine(label: "Wallet Aggregate", value: model.walletAggregateHashrateText, theme: theme, helpText: "Aggregate hashrate reported by unMineable for this wallet. This can include this app and any other miners pointed at the same address.")
-                            SessionLine(label: "Active Workers", value: model.walletWorkerCountText, theme: theme, helpText: "Active workers reported by unMineable for this wallet.")
-                            SessionLine(label: "Algorithms", value: model.walletAlgorithmCountText, theme: theme, helpText: "Distinct active algorithms reported by unMineable for this wallet.")
-                            SessionLine(label: "Total Paid", value: model.walletPaidText, theme: theme, helpText: "Total paid amount reported by unMineable for this wallet and selected coin.")
-                            SessionLine(label: "Last Payment", value: model.walletLastPaymentText, theme: theme, helpText: "Last payout date reported by unMineable for this wallet.")
-                        }
-
-                        if !model.walletStatsTimestampText.isEmpty {
-                            Text(model.walletStatsTimestampText)
-                                .font(.system(size: 11, weight: .medium, design: .rounded))
-                                .foregroundStyle(theme.tertiaryText)
-                        }
-                    }
-                }
-
                 DashboardCard(padding: 16, theme: theme) {
                     VStack(spacing: 16) {
                         HashrateSparkline(values: model.hashrateSamples, theme: theme)
@@ -3220,9 +3252,112 @@ struct MineDashboardView: View {
     }
 }
 
+struct WalletStatsDashboardView: View {
+    @ObservedObject var model: NativeAppModel
+    @Binding var activePanel: SecondaryPanel?
+    let theme: DashboardTheme
+
+    var body: some View {
+        ScrollView(showsIndicators: false) {
+            VStack(spacing: 16) {
+                DashboardCard(theme: theme) {
+                    VStack(alignment: .leading, spacing: 16) {
+                        HStack(alignment: .firstTextBaseline, spacing: 12) {
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text("Wallet Stats")
+                                    .font(.system(size: 20, weight: .bold, design: .rounded))
+                                    .foregroundStyle(theme.primaryText)
+                                Text("Uses the coin and wallet currently selected in the Mine tab.")
+                                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                                    .foregroundStyle(theme.tertiaryText)
+                            }
+                            Spacer()
+                            Button(model.isRefreshingWalletStats ? "Refreshing..." : "Refresh Wallet Stats") {
+                                model.refreshWalletStatsNow()
+                            }
+                            .buttonStyle(.bordered)
+                            .disabled(model.isRefreshingWalletStats || model.walletAddress.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                            .help("Refresh wallet balance, payout threshold, and aggregate unMineable wallet activity.")
+                        }
+
+                        Text(model.walletStatsStatusText)
+                            .font(.system(size: 12, weight: .medium, design: .rounded))
+                            .foregroundStyle(theme.secondaryText)
+                            .fixedSize(horizontal: false, vertical: true)
+
+                        HStack(alignment: .bottom, spacing: 20) {
+                            MetricBlock(title: "Current Balance", value: model.walletBalanceText, theme: theme)
+                            MetricBlock(title: "Threshold", value: model.walletThresholdText, theme: theme)
+                            Spacer(minLength: 0)
+                        }
+
+                        if !model.walletStatsTimestampText.isEmpty {
+                            Text(model.walletStatsTimestampText)
+                                .font(.system(size: 11, weight: .medium, design: .rounded))
+                                .foregroundStyle(theme.tertiaryText)
+                        }
+                    }
+                }
+
+                DashboardCard(theme: theme) {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Selected Wallet")
+                            .font(.system(size: 16, weight: .bold, design: .rounded))
+                            .foregroundStyle(theme.primaryText)
+
+                        SessionLine(label: "Address", value: model.displayWallet(), theme: theme, helpText: model.walletAddress.isEmpty ? "Wallet address is not set." : model.walletAddress)
+                        SessionLine(label: "Coin", value: model.coinSymbol, theme: theme, helpText: "Current payout coin selection.")
+                        SessionLine(label: "Network", value: model.walletResolvedNetworkText, theme: theme, helpText: "Network reported by unMineable for the selected wallet and coin.")
+                        SessionLine(label: "Algorithm", value: model.selectedAlgorithm?.label ?? "-", theme: theme, helpText: "Current mining algorithm selection from the Mine tab.")
+                        SessionLine(label: "Pool", value: model.selectedPoolHost, theme: theme, helpText: "Pool host for the current algorithm selection.")
+                    }
+                }
+
+                DashboardCard(theme: theme) {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Aggregate Wallet Activity")
+                            .font(.system(size: 16, weight: .bold, design: .rounded))
+                            .foregroundStyle(theme.primaryText)
+
+                        SessionLine(label: "Wallet Aggregate", value: model.walletAggregateHashrateText, theme: theme, helpText: "Aggregate hashrate reported by unMineable for this wallet. This can include this app and any other miners pointed at the same address.")
+                        SessionLine(label: "Active Workers", value: model.walletWorkerCountText, theme: theme, helpText: "Active workers reported by unMineable for this wallet.")
+                        SessionLine(label: "Algorithms", value: model.walletAlgorithmCountText, theme: theme, helpText: "Distinct active algorithms reported by unMineable for this wallet.")
+                        SessionLine(label: "Total Paid", value: model.walletPaidText, theme: theme, helpText: "Total paid amount reported by unMineable for this wallet and selected coin.")
+                        SessionLine(label: "Last Payment", value: model.walletLastPaymentText, theme: theme, helpText: "Last payout date reported by unMineable for this wallet.")
+                    }
+                }
+
+                DashboardCard(padding: 16, theme: theme) {
+                    HStack(alignment: .center, spacing: 12) {
+                        Button("Open Status") {
+                            activePanel = .info
+                        }
+                        .buttonStyle(.bordered)
+                        .help("Open the detailed pool, session, and project status sheet.")
+
+                        Button("Open Setup") {
+                            activePanel = .setup
+                        }
+                        .buttonStyle(.bordered)
+                        .help("Open setup tabs for miner management, path overrides, validation, and installer logs.")
+
+                        Spacer()
+
+                        Text("Wallet stats are read-only and come from unMineable's public API.")
+                            .font(.system(size: 12, weight: .medium, design: .rounded))
+                            .foregroundStyle(theme.tertiaryText)
+                    }
+                }
+            }
+            .padding(20)
+        }
+    }
+}
+
 struct NativeContentView: View {
     @StateObject private var model = NativeAppModel()
     @State private var activePanel: SecondaryPanel?
+    @State private var selectedTab: MainDashboardTab = .mine
     @AppStorage(prefAppearanceModeKey) private var appearanceModeRaw = AppearanceMode.system.rawValue
     @AppStorage(prefPaletteKey) private var paletteRaw = AccentPalette.mint.rawValue
     @Environment(\.colorScheme) private var systemColorScheme
@@ -3244,7 +3379,21 @@ struct NativeContentView: View {
     }
 
     var body: some View {
-        MineDashboardView(model: model, activePanel: $activePanel, theme: theme)
+        VStack(spacing: 0) {
+            DashboardHeaderView(model: model, selectedTab: $selectedTab, activePanel: $activePanel, theme: theme)
+                .padding(.horizontal, 20)
+                .padding(.top, 20)
+                .padding(.bottom, 8)
+
+            Group {
+                switch selectedTab {
+                case .mine:
+                    MineDashboardView(model: model, activePanel: $activePanel, theme: theme)
+                case .wallet:
+                    WalletStatsDashboardView(model: model, activePanel: $activePanel, theme: theme)
+                }
+            }
+        }
             .background(
                 ZStack {
                     LinearGradient(

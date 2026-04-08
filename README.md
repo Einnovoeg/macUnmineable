@@ -3,7 +3,7 @@
 `macUnmineable` is a native SwiftUI macOS app for Apple Silicon that wraps the
 unMineable mining flow into a wallet-first desktop GUI.
 
-Current source release: `v0.5.0`
+Current source release: `v0.5.1`
 
 The app lets you:
 
@@ -13,8 +13,9 @@ The app lets you:
 4. Start and stop mining from a native macOS window.
 5. Install, update, validate, and inspect the managed miner binaries from
    secondary panels.
-6. View live wallet stats from unMineable, including current balance, payout
-   threshold, aggregate wallet hashrate, active workers, and total paid.
+6. View live wallet stats from unMineable in a separate `Wallet` tab, including
+   current balance, payout threshold, aggregate wallet hashrate, active
+   workers, and total paid.
 
 ## Current support
 

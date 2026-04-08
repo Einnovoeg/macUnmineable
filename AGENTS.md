@@ -27,7 +27,7 @@ Core files:
 
 ## 2. What Has Been Done
 
-Current project state as of `v0.5.0`:
+Current project state as of `v0.5.1`:
 - the abandoned local web/server prototype was removed; this is a native macOS app
 - the GUI was rebuilt into a single-window dashboard with secondary sheets for setup, advanced options, logs, and status
 - hover tooltips were added across the GUI
@@ -35,6 +35,7 @@ Current project state as of `v0.5.0`:
 - setup was reorganized into tabs and the main app bundle now includes a custom icon
 - coin selection uses a searchable live unMineable catalog with local caching
 - wallet stats now use the public unMineable API to show balance, payout threshold, aggregate wallet hashrate, worker count, and total paid
+- wallet stats live in their own top-level `Wallet` tab so the main mining tab stays focused on mining controls
 - the app now reflects the real Apple Silicon backend model instead of pretending unsupported miners are available
 - unsupported `UselethMiner` and `SRBMiner` launcher paths were removed from the app and the stale repo payloads were deleted
 - security hardening was added around installer execution, custom binary validation, config permissions, and external-link handling

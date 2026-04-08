@@ -4,6 +4,25 @@ All notable changes to this project are documented in this file.
 
 This project follows Semantic Versioning for release tags.
 
+## [0.5.1] - 2026-04-08
+
+### Changed
+
+- Moved wallet balance, payout threshold, and aggregate wallet activity out of
+  the main mining dashboard and into a dedicated top-level `Wallet` tab.
+- Added a main-window tab switcher so mining and wallet-monitoring views stay
+  separated without adding another popup window.
+
+### Fixed
+
+- Removed wallet-stat density from the `Mine` tab so the core mining flow is
+  cleaner and easier to scan.
+
+### Verification
+
+- Type-checked the native SwiftUI app after the tab split.
+- Re-ran the full smoke verification suite and rebuilt the deployed app bundle.
+
 ## [0.5.0] - 2026-04-07
 
 ### Added
