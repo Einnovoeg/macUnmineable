@@ -3,7 +3,8 @@
 ## Runtime
 
 - macOS 13 or newer
-- Internet access to reach unMineable pools and download the managed miner releases
+- Internet access to reach unMineable pool and wallet-stat endpoints plus the
+  managed miner release downloads
 - Managed Apple Silicon miners supported by the app:
   - `XMRig` macOS arm64
   - `cpuminer-scash` macOS Sonoma arm64
@@ -27,12 +28,10 @@
 ## Verification
 
 - Everything listed in **Build**
-- Temporary disk space for the smoke-test download used by `./scripts/verify.sh`
+- Temporary disk space for the smoke-test downloads used by `./scripts/verify.sh`
 
 ## Optional
 
-- A user-supplied custom secondary miner binary if you want to experiment beyond
-  the managed Apple Silicon backends
-- The official `UselethMiner` macOS package if you want optional `Ethash`
-  support through its upstream `/usr/local/uselethminer` installation model
+- A user-supplied custom native macOS Mach-O miner binary if you want to test
+  outside the managed backend set
 - `gh` if you want to publish or manage the repository from the command line

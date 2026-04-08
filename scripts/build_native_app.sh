@@ -138,7 +138,6 @@ stage_runtime_dir() {
 
 stage_runtime_dir "xmrig" "xmrig"
 stage_runtime_dir "cpuminer-scash" "minerd"
-stage_runtime_dir "srbminer" "SRBMiner-MULTI"
 
 chmod +x "${APP_BIN}" || true
 chmod +x "${RUNTIME_DIR}"/scripts/install_*.sh || true
@@ -147,9 +146,6 @@ if [[ -f "${RUNTIME_DIR}/miners/xmrig/xmrig" ]]; then
 fi
 if [[ -f "${RUNTIME_DIR}/miners/cpuminer-scash/minerd" ]]; then
   chmod +x "${RUNTIME_DIR}/miners/cpuminer-scash/minerd" || true
-fi
-if [[ -f "${RUNTIME_DIR}/miners/srbminer/SRBMiner-MULTI" ]]; then
-  chmod +x "${RUNTIME_DIR}/miners/srbminer/SRBMiner-MULTI" || true
 fi
 
 echo "Built native app bundle: ${APP_DIR}"

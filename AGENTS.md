@@ -4,13 +4,15 @@ This file is for future agents working in this repository.
 
 ## 1. Point of the Project
 
-`macUnmineable` is a native SwiftUI macOS app for Apple Silicon that gives a wallet-first GUI for unMineable mining workflows.
+`macUnmineable` is a native SwiftUI macOS app for Apple Silicon that provides a
+wallet-first GUI for unMineable mining workflows.
 
 The product goal is:
 - keep the main flow simple: coin, wallet, algorithm, hardware, start/stop
 - use a real native macOS UI instead of a local web/server wrapper
 - only expose miner backends that actually work on Apple Silicon macOS
 - keep setup, validation, logs, and advanced controls in secondary panels
+- show live wallet stats from unMineable inside the app
 - keep the project secure, documented, and license-compliant
 
 Core files:
@@ -25,23 +27,25 @@ Core files:
 
 ## 2. What Has Been Done
 
-Current project state as of `v0.4.4`:
+Current project state as of `v0.5.0`:
 - the abandoned local web/server prototype was removed; this is a native macOS app
 - the GUI was rebuilt into a single-window dashboard with secondary sheets for setup, advanced options, logs, and status
 - hover tooltips were added across the GUI
 - appearance controls were added for `System`, `Light`, and `Dark` modes plus accent palettes
-- input visibility issues and modal close/exit issues were fixed
+- setup was reorganized into tabs and the main app bundle now includes a custom icon
+- coin selection uses a searchable live unMineable catalog with local caching
+- wallet stats now use the public unMineable API to show balance, payout threshold, aggregate wallet hashrate, worker count, and total paid
 - the app now reflects the real Apple Silicon backend model instead of pretending unsupported miners are available
+- unsupported `UselethMiner` and `SRBMiner` launcher paths were removed from the app and the stale repo payloads were deleted
 - security hardening was added around installer execution, custom binary validation, config permissions, and external-link handling
 - README, dependency docs, notices, license, changelog, and `.gitignore` were cleaned up
 - personal machine-specific strings were removed from tracked files except where explicitly requested by the user
 - the Buy Me a Coffee link was intentionally retained: `https://buymeacoffee.com/einnovoeg`
 
-Verified managed or supported backend model:
+Verified launcher backend model:
 - built-in managed: `XMRig`
 - built-in managed: `cpuminer-scash`
-- optional external-only: `UselethMiner` when installed by its official macOS package at `/usr/local/uselethminer/uselethminer`
-- not treated as a built-in managed backend: `SRBMiner`
+- not exposed in the launcher: `UselethMiner`, `SRBMiner`, `nanominer`, `BzMiner`, `OneZeroMiner`
 
 Important historical decisions:
 - do not reintroduce a local server/web-app wrapper
@@ -80,6 +84,7 @@ When you make changes, follow this order:
 - Keep external URLs restricted to HTTPS.
 - Keep custom miner validation restricted to native macOS Mach-O executables.
 - Keep config/runtime permissions tight.
+- Keep unMineable wallet stats fetches read-only and debounced.
 
 4. Verify before publishing.
 - Run:

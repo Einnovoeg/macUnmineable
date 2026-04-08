@@ -4,6 +4,41 @@ All notable changes to this project are documented in this file.
 
 This project follows Semantic Versioning for release tags.
 
+## [0.5.0] - 2026-04-07
+
+### Added
+
+- Added live wallet stats from the public unMineable API, including current
+  balance, payout threshold, aggregate wallet hashrate, active worker count,
+  active algorithm count, total paid, and last payment time.
+- Added automatic wallet-stats refresh scheduling so the selected wallet stays
+  in sync with unMineable without requiring manual refresh after every change.
+
+### Changed
+
+- Restricted the launcher surface to the Apple Silicon miner backends that are
+  actually bundled, verifiable, and runnable in this app: `XMRig` and
+  `cpuminer-scash`.
+- Removed stale repository payloads and launcher-facing references for
+  unsupported `UselethMiner` and `SRBMiner` paths.
+- Updated the README, dependency list, third-party notices, AGENTS handoff,
+  and support matrix to match the corrected runtime model.
+
+### Fixed
+
+- Corrected the live coin-catalog fetch URL to use the proper
+  `api.unmineable.com` host.
+- Removed the last Setup-sheet notes that still implied unsupported miners were
+  relevant choices inside this launcher.
+
+### Verification
+
+- Verified the public unMineable wallet endpoints live and matched the in-app
+  decoding path against real wallet/account responses.
+- Re-ran full smoke verification, including typecheck, managed installer
+  checks, embedded/source-only bundle builds, and dry-run starts against
+  `rx.unmineable.com`, `ghostrider.unmineable.com`, and `kp.unmineable.com`.
+
 ## [0.4.6] - 2026-04-07
 
 ### Fixed

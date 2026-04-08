@@ -1,51 +1,60 @@
 # macUnmineable
 
-`macUnmineable` is a native SwiftUI macOS app that wraps the unMineable mining
-workflow into a wallet-first GUI for Apple Silicon.
+`macUnmineable` is a native SwiftUI macOS app for Apple Silicon that wraps the
+unMineable mining flow into a wallet-first desktop GUI.
 
-Current source release: `v0.4.6`
+Current source release: `v0.5.0`
 
 The app lets you:
 
-1. Choose the payout coin.
+1. Choose the payout coin from the full live unMineable catalog.
 2. Paste the wallet address.
-3. Choose a supported mining algorithm.
-4. Start and stop the backend from a native macOS window.
-5. Install, update, validate, and inspect managed miners from secondary panels.
-6. Search the full live unMineable coin catalog from a dedicated picker that
-   caches the last successful result locally.
-7. Run with a native macOS app icon instead of the default executable bundle
-   icon.
+3. Choose a real Apple Silicon-compatible mining algorithm/backend combination.
+4. Start and stop mining from a native macOS window.
+5. Install, update, validate, and inspect the managed miner binaries from
+   secondary panels.
+6. View live wallet stats from unMineable, including current balance, payout
+   threshold, aggregate wallet hashrate, active workers, and total paid.
 
 ## Current support
 
-The managed Apple Silicon backends in this project are:
+The launcher only exposes Apple Silicon backends that were verified as real,
+workable macOS paths for this app:
 
 - `XMRig` on CPU for `RandomX`, `GhostRider`, and `KawPow`
 - `cpuminer-scash` on CPU for `RandomX`
-- Optional external `UselethMiner` on CPU or Apple Silicon `Metal` GPU for `Ethash` when the official macOS package is installed to `/usr/local/uselethminer`
 
-The app can still accept a custom secondary miner path. The normal Apple
-Silicon flow is based on managed backends that the app can install and update
-itself, plus optional external backends only when their upstream installation
-model is compatible.
+Unsupported or unverified backends are intentionally kept out of the launcher
+UI. The payout coin is independent from the miner backend; many different coins
+can still be paid out through the same supported mining algorithm.
 
-### Official miner matrix
+### Compatibility review
 
-Checked on **March 24, 2026** against official upstream release feeds and local
+Checked on **April 7, 2026** against official upstream release feeds and local
 startup behavior:
 
-- `XMRig`: official `macOS arm64` release available
-- `cpuminer-scash`: official `macOS Sonoma arm64` release available
-- `UselethMiner`: official `macOS arm64` package available, with Apple Silicon Metal GPU support documented upstream, but upstream macOS packaging expects installation to `/usr/local/uselethminer`
-- `SRBMiner-MULTI`: no normal macOS release asset in the latest official release
+- `XMRig`: official `macOS arm64` release available and locally verified
+- `cpuminer-scash`: official `macOS Sonoma arm64` release available and locally verified
+- `SRBMiner-MULTI`: no normal official macOS release asset
 - `nanominer`: latest official release ships Linux/Windows assets only
 - `BzMiner`: latest official release ships Linux/Windows assets only
-- `OneZeroMiner`: latest release includes a generic `.tar.gz`, but the contained binary is Linux `ELF x86-64`, not macOS
+- `OneZeroMiner`: latest generic tarball contains a Linux `ELF x86-64` binary, not macOS
+
+## Wallet stats
+
+`macUnmineable` uses the same public unMineable API family that backs the
+official wallet stats pages:
+
+- address lookup: `/v5/address/{address}?coin={symbol}`
+- account stats: `/v5/account/{uuid}/stats`
+- account summary: `/v5/account/{uuid}/summary`
+
+The app displays wallet-level aggregate numbers reported by unMineable. Those
+numbers can include this app and any other miners pointed at the same wallet.
 
 ## Repository layout
 
-- [VERSION](VERSION): tracked release metadata used by the app bundle build
+- [VERSION](VERSION): release metadata used by app bundles and tags
 - [CHANGELOG.md](CHANGELOG.md): release history
 - [native/MacUnmineableNative.swift](native/MacUnmineableNative.swift): native app source
 - [scripts/build_native_app.sh](scripts/build_native_app.sh): app bundle builder
@@ -54,6 +63,7 @@ startup behavior:
 - [scripts/verify.sh](scripts/verify.sh): smoke-test verification script
 - [DEPENDENCIES.md](DEPENDENCIES.md): developer and runtime requirements
 - [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md): third-party credits and license notes
+- [AGENTS.md](AGENTS.md): handoff instructions for future agents
 
 ## Install and run
 
@@ -65,10 +75,11 @@ startup behavior:
 ./scripts/build_native_app.sh
 ```
 
-By default, the builder downloads and embeds the managed Apple Silicon miners
-into the generated `.app` bundle so the app can launch with built-in backends.
+By default, the builder downloads and embeds the managed Apple Silicon miner
+binaries into the generated `.app` bundle so the app can launch with built-in
+backends.
 
-If you want a source-only bundle that does not embed any third-party miner
+If you need a source-only bundle that does not embed any third-party miner
 binaries, disable both the download and embedding stages explicitly:
 
 ```bash
@@ -82,27 +93,18 @@ open dist/macUnmineable.app
 ```
 
 3. On first launch, let the app auto-install the managed miners if they are
-   missing, or open `Setup` and install/update them individually.
-
-4. If you want `Ethash` through `UselethMiner`, install the official upstream
-   macOS package separately so the binary is present at
-   `/usr/local/uselethminer/uselethminer`.
+   missing, or open `Setup` and install/update them manually.
 
 ### Developers
 
 The source repository intentionally does not commit prebuilt managed miner
-binaries. Instead, use the installer scripts to download the official releases
-into the local working tree when needed:
+binaries. Use the installer scripts to download the official releases into the
+local working tree when needed:
 
 ```bash
 ./scripts/install_xmrig.sh
 ./scripts/install_cpuminer_scash.sh
 ```
-
-If you install the official `UselethMiner` macOS package separately, the app
-can detect it at `/usr/local/uselethminer/uselethminer`. If you already have a
-compatible custom secondary miner build, point the app at it from the `Setup`
-panel.
 
 ## Verification
 
@@ -117,7 +119,8 @@ That script:
 - type-checks the SwiftUI source
 - builds the native app bundle in both embedded and source-only modes
 - exercises the managed installer scripts
-- verifies dry-run startup for the XMRig-backed algorithms that can be tested safely in automation
+- verifies dry-run startup for the supported XMRig algorithm routes
+- verifies that the built bundle contains only the expected managed runtime payloads
 
 ## Dependencies
 
@@ -128,8 +131,8 @@ See [DEPENDENCIES.md](DEPENDENCIES.md).
 - Release tags follow `vMAJOR.MINOR.PATCH`.
 - Bundle version metadata is tracked in [VERSION](VERSION).
 - User-facing release history lives in [CHANGELOG.md](CHANGELOG.md).
-- GitHub releases from this source repository are source-only so the project
-  does not redistribute third-party miner binaries.
+- GitHub releases from this repository are source-only so the project does not
+  redistribute third-party miner binaries directly.
 - Local builders can still produce an embedded `.app` bundle for personal use
   or compliant redistribution by leaving the default build flags enabled.
 
@@ -139,18 +142,13 @@ See [DEPENDENCIES.md](DEPENDENCIES.md).
   installing `XMRig` or `cpuminer-scash`.
 - The app executes installer scripts from the read-only app bundle instead of a
   writable `Application Support` copy.
-- `UselethMiner` is not treated as a managed bundled backend because upstream
-  macOS packaging expects a system install path outside the app runtime.
-- Managed installer targets must be explicit absolute paths, and the app now
-  validates custom miner overrides as native macOS Mach-O executables before
-  saving them.
-- The build script now supports an explicit source-only mode so maintainers can
-  verify that public source distributions stay free of third-party miner
-  binaries even when local development machines already have downloaded payloads.
-- Local config and runtime directories are written with tighter user-only
-  permissions.
+- Managed installer targets must be explicit absolute paths.
+- Custom miner overrides are validated as native macOS Mach-O executables
+  before they are saved.
+- Local config and runtime directories are written with user-only permissions.
 - The app launches miner binaries directly with fixed argument arrays rather
-  than shelling untrusted input through a shell.
+  than shelling user input through a shell.
+- Wallet stats requests use HTTPS-only public unMineable endpoints.
 
 ## Support
 
@@ -165,12 +163,12 @@ Third-party software remains under its own license terms. See
 
 ## Credits
 
-- unMineable workflow inspiration: [unMineable](https://unmineable.com/)
-- Included miner backend integration: [XMRig](https://github.com/xmrig/xmrig)
-- UI and ecosystem references: [macmineable](https://github.com/2nthony/macmineable), [EasyMiner](https://github.com/shepp31/EasyMiner), [SRBMiner-Multi](https://github.com/doktor83/SRBMiner-Multi)
+- unMineable workflow inspiration and wallet stats model: [unMineable](https://unmineable.com/)
+- Managed miner backend integrations: [XMRig](https://github.com/xmrig/xmrig), [cpuminer-scash](https://github.com/scashnetwork/cpuminer-scash)
+- UI and ecosystem references: [macmineable](https://github.com/2nthony/macmineable), [EasyMiner](https://github.com/shepp31/EasyMiner), [MacMiner](https://xcreate.com/macminer/)
 
 ## Disclaimer
 
-Mining profitability, device support, payout rules, and remote pool behavior can
+Mining profitability, payout rules, device support, and remote pool behavior can
 change at any time. Validate the current unMineable settings and upstream miner
 support before running long-lived mining sessions.

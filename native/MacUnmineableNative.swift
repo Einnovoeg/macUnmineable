@@ -29,9 +29,107 @@ struct AlgorithmConfig: Identifiable, Hashable {
     let ports: [Int]
     let xmrigAlgo: String?
     let cpuminerAlgo: String?
-    let uselethSupported: Bool
-    let srbCpuAlgo: String?
-    let srbGpuAlgo: String?
+}
+
+// Wallet stats come from unMineable's public v5 API. The launcher uses the
+// same address resolver and account endpoints as the website so balance and
+// worker numbers stay consistent with the official stats page.
+struct UnmineableAddressLookupResponse: Decodable {
+    let data: UnmineableAddressLookupData
+}
+
+struct LossyString: Decodable {
+    let value: String
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        if let string = try? container.decode(String.self) {
+            value = string
+        } else if let int = try? container.decode(Int.self) {
+            value = String(int)
+        } else if let double = try? container.decode(Double.self) {
+            value = String(double)
+        } else {
+            value = ""
+        }
+    }
+}
+
+struct UnmineableAddressLookupData: Decodable {
+    let uuid: String?
+    let address: String?
+    let network: String?
+    let paymentThreshold: String?
+    let balance: String?
+    let balancePayable: String?
+    let miningFee: String?
+    let fresh: Bool?
+    let inactive: Bool?
+    let enabled: Bool?
+    let enabledAutoOnly: Bool?
+
+    enum CodingKeys: String, CodingKey {
+        case uuid
+        case address
+        case network
+        case paymentThreshold = "payment_threshold"
+        case balance
+        case balancePayable = "balance_payable"
+        case miningFee = "mining_fee"
+        case fresh
+        case inactive
+        case enabled
+        case enabledAutoOnly = "enabled_auto_only"
+    }
+}
+
+struct UnmineableAccountStatsResponse: Decodable {
+    let data: UnmineableAccountStatsData
+}
+
+struct UnmineableAccountStatsData: Decodable {
+    let balanceMining: String?
+    let balanceReferral: String?
+    let balance: String?
+    let paid: String?
+    let lastPayment: LossyString?
+    let paymentThreshold: String?
+    let miningFee: String?
+    let coin: String?
+    let network: String?
+
+    enum CodingKeys: String, CodingKey {
+        case balanceMining = "balance_mining"
+        case balanceReferral = "balance_referral"
+        case balance
+        case paid
+        case lastPayment = "last_payment"
+        case paymentThreshold = "payment_threshold"
+        case miningFee = "mining_fee"
+        case coin
+        case network
+    }
+}
+
+struct UnmineableAccountSummaryResponse: Decodable {
+    let data: UnmineableAccountSummaryData
+}
+
+struct UnmineableAccountSummaryData: Decodable {
+    let timestamp: Double?
+    let raw: UnmineableAccountSummaryRaw?
+}
+
+struct UnmineableAccountSummaryRaw: Decodable {
+    let workerCount: Int?
+    let algorithmCount: Int?
+    let hr: [String: String]?
+
+    enum CodingKeys: String, CodingKey {
+        case workerCount = "worker_count"
+        case algorithmCount = "algorithm_count"
+        case hr
+    }
 }
 
 enum HardwareChoice: String, CaseIterable, Identifiable {
@@ -53,8 +151,6 @@ enum BackendChoice: String, CaseIterable, Identifiable {
     case auto
     case xmrig
     case cpuminerScash
-    case uselethminer
-    case srbminer
 
     var id: String { rawValue }
     var displayName: String {
@@ -62,8 +158,6 @@ enum BackendChoice: String, CaseIterable, Identifiable {
         case .auto: return "Auto"
         case .xmrig: return "XMRig"
         case .cpuminerScash: return "cpuminer-scash"
-        case .uselethminer: return "UselethMiner"
-        case .srbminer: return "SRBMiner"
         }
     }
 }
@@ -71,15 +165,11 @@ enum BackendChoice: String, CaseIterable, Identifiable {
 enum InstallTarget: String, CaseIterable {
     case xmrig
     case cpuminerScash = "cpuminer_scash"
-    case uselethminer
-    case srbminer
 
     var displayName: String {
         switch self {
         case .xmrig: return "XMRig"
         case .cpuminerScash: return "cpuminer-scash"
-        case .uselethminer: return "UselethMiner"
-        case .srbminer: return "SRBMiner"
         }
     }
 }
@@ -246,12 +336,9 @@ private let fallbackCoins: [CoinOption] = [
 ]
 
 private let algorithms: [AlgorithmConfig] = [
-    .init(id: "rx", label: "RandomX", host: "rx.unmineable.com", ports: [3333, 13333, 4445], xmrigAlgo: "rx", cpuminerAlgo: "randomx", uselethSupported: false, srbCpuAlgo: "randomx", srbGpuAlgo: nil),
-    .init(id: "ghostrider", label: "GhostRider", host: "ghostrider.unmineable.com", ports: [3333, 13333], xmrigAlgo: "gr", cpuminerAlgo: nil, uselethSupported: false, srbCpuAlgo: "ghostrider", srbGpuAlgo: nil),
-    .init(id: "etchash", label: "Etchash", host: "etchash.unmineable.com", ports: [3333, 13333], xmrigAlgo: nil, cpuminerAlgo: nil, uselethSupported: false, srbCpuAlgo: nil, srbGpuAlgo: "etchash"),
-    .init(id: "ethash", label: "Ethash", host: "ethash.unmineable.com", ports: [3333, 13333], xmrigAlgo: nil, cpuminerAlgo: nil, uselethSupported: true, srbCpuAlgo: nil, srbGpuAlgo: "ethash"),
-    .init(id: "kp", label: "KawPow", host: "kp.unmineable.com", ports: [3333, 13333], xmrigAlgo: "kawpow", cpuminerAlgo: nil, uselethSupported: false, srbCpuAlgo: nil, srbGpuAlgo: "kawpow"),
-    .init(id: "autolykos", label: "Autolykos", host: "autolykos.unmineable.com", ports: [3333, 13333], xmrigAlgo: nil, cpuminerAlgo: nil, uselethSupported: false, srbCpuAlgo: nil, srbGpuAlgo: "autolykos2"),
+    .init(id: "rx", label: "RandomX", host: "rx.unmineable.com", ports: [3333, 13333, 4445], xmrigAlgo: "rx", cpuminerAlgo: "randomx"),
+    .init(id: "ghostrider", label: "GhostRider", host: "ghostrider.unmineable.com", ports: [3333, 13333], xmrigAlgo: "gr", cpuminerAlgo: nil),
+    .init(id: "kp", label: "KawPow", host: "kp.unmineable.com", ports: [3333, 13333], xmrigAlgo: "kawpow", cpuminerAlgo: nil),
 ]
 
 private let prefAutoInstallXMRigKey = "macunmineable.pref.autoInstallXmrig"
@@ -319,7 +406,21 @@ final class NativeAppModel: ObservableObject {
     @Published var validationLogs: String = ""
     @Published var poolConnectionText: String = "Not tested."
     @Published var xmrigPathOverride: String = ""
-    @Published var srbminerPathOverride: String = ""
+    @Published var cpuminerPathOverride: String = ""
+    // Wallet/account stats mirror the public unMineable stats pages. These
+    // values are wallet-level aggregates, so they can include work submitted
+    // by this app and by any other miners pointed at the same address.
+    @Published var walletStatsStatusText: String = "Enter a wallet address to load unMineable stats."
+    @Published var walletResolvedNetworkText: String = "-"
+    @Published var walletBalanceText: String = "--"
+    @Published var walletThresholdText: String = "--"
+    @Published var walletPaidText: String = "--"
+    @Published var walletLastPaymentText: String = "No payouts yet"
+    @Published var walletAggregateHashrateText: String = "--"
+    @Published var walletWorkerCountText: String = "--"
+    @Published var walletAlgorithmCountText: String = "--"
+    @Published var walletStatsTimestampText: String = ""
+    @Published var isRefreshingWalletStats: Bool = false
     @Published var isMining: Bool = false
     @Published var isInstalling: Bool = false
     @Published var isTestingConnection: Bool = false
@@ -328,6 +429,8 @@ final class NativeAppModel: ObservableObject {
     private var installProcess: Process?
     private var minerBackend: BackendChoice = .auto
     private var configMinerPaths: [String: String] = [:]
+    private var walletStatsRefreshTimer: Timer?
+    private var pendingWalletStatsRefresh: DispatchWorkItem?
 
     private let fileManager = FileManager.default
     private let appSupportURL: URL
@@ -362,6 +465,7 @@ final class NativeAppModel: ObservableObject {
         refreshSelection()
         refreshMinerAvailabilityText()
         fetchCoins()
+        scheduleWalletStatsRefresh(immediate: true)
         startNetworkMonitor()
         if defaults.bool(forKey: prefAutoInstallXMRigKey) {
             ensureManagedMinersInstalledIfNeeded()
@@ -372,6 +476,8 @@ final class NativeAppModel: ObservableObject {
 
     deinit {
         networkMonitor?.cancel()
+        walletStatsRefreshTimer?.invalidate()
+        pendingWalletStatsRefresh?.cancel()
     }
 
     // The visible algorithm list is intentionally constrained by the current
@@ -380,8 +486,6 @@ final class NativeAppModel: ObservableObject {
     var filteredAlgorithms: [AlgorithmConfig] {
         let xmrigReady = hasUsableXMRigBinary
         let cpuminerReady = hasUsableCPUMinerScashBinary
-        let uselethReady = hasUsableUselethMinerBinary
-        let srbminerReady = hasUsableSRBMinerBinary
         switch backend {
         case .xmrig:
             if hardware == .gpu {
@@ -393,36 +497,11 @@ final class NativeAppModel: ObservableObject {
                 return []
             }
             return cpuminerReady ? algorithms.filter { $0.cpuminerAlgo != nil } : []
-        case .uselethminer:
-            return uselethReady ? algorithms.filter { $0.uselethSupported } : []
-        case .srbminer:
-            guard srbminerReady else { return [] }
-            switch hardware {
-            case .gpu:
-                return algorithms.filter { $0.srbGpuAlgo != nil }
-            case .cpu:
-                return algorithms.filter { $0.srbCpuAlgo != nil }
-            case .auto:
-                return algorithms.filter { $0.srbGpuAlgo != nil || $0.srbCpuAlgo != nil }
-            }
         case .auto:
-            switch hardware {
-            case .gpu:
-                return algorithms.filter { (uselethReady && $0.uselethSupported) || (srbminerReady && $0.srbGpuAlgo != nil) }
-            case .cpu:
-                return algorithms.filter {
-                    (xmrigReady && $0.xmrigAlgo != nil)
-                        || (cpuminerReady && $0.cpuminerAlgo != nil)
-                        || (uselethReady && $0.uselethSupported)
-                        || (srbminerReady && $0.srbCpuAlgo != nil)
-                }
-            case .auto:
-                return algorithms.filter {
-                    (xmrigReady && $0.xmrigAlgo != nil)
-                        || (cpuminerReady && $0.cpuminerAlgo != nil)
-                        || (uselethReady && $0.uselethSupported)
-                        || (srbminerReady && ($0.srbCpuAlgo != nil || $0.srbGpuAlgo != nil))
-                }
+            guard hardware != .gpu else { return [] }
+            return algorithms.filter {
+                (xmrigReady && $0.xmrigAlgo != nil)
+                    || (cpuminerReady && $0.cpuminerAlgo != nil)
             }
         }
     }
@@ -435,20 +514,10 @@ final class NativeAppModel: ObservableObject {
         hasUsableBinary(target: .cpuminerScash)
     }
 
-    var hasUsableUselethMinerBinary: Bool {
-        hasUsableBinary(target: .uselethminer)
-    }
-
-    var hasUsableSRBMinerBinary: Bool {
-        hasUsableBinary(target: .srbminer)
-    }
-
     var availableBackends: [BackendChoice] {
         let ready: [BackendChoice] = [
             hasUsableXMRigBinary ? .xmrig : nil,
             hasUsableCPUMinerScashBinary ? .cpuminerScash : nil,
-            hasUsableUselethMinerBinary ? .uselethminer : nil,
-            hasUsableSRBMinerBinary ? .srbminer : nil,
         ].compactMap { $0 }
 
         if ready.count > 1 {
@@ -461,18 +530,6 @@ final class NativeAppModel: ObservableObject {
     }
 
     var availableHardwareChoices: [HardwareChoice] {
-        let gpuAvailable = hasUsableUselethMinerBinary || hasUsableSRBMinerBinary
-        let cpuAvailable = hasUsableXMRigBinary || hasUsableCPUMinerScashBinary || hasUsableUselethMinerBinary || hasUsableSRBMinerBinary
-
-        if gpuAvailable && cpuAvailable {
-            return [.auto, .cpu, .gpu]
-        }
-        if gpuAvailable {
-            return [.gpu]
-        }
-        if cpuAvailable {
-            return isAppleSilicon() ? [.cpu] : [.auto, .cpu]
-        }
         return isAppleSilicon() ? [.cpu] : [.auto, .cpu]
     }
 
@@ -484,14 +541,8 @@ final class NativeAppModel: ObservableObject {
         if hasUsableCPUMinerScashBinary {
             backends.append("cpuminer-scash for RandomX on CPU")
         }
-        if hasUsableUselethMinerBinary {
-            backends.append("UselethMiner for Ethash on CPU or Metal GPU when the official /usr/local installation is present")
-        }
-        if hasUsableSRBMinerBinary {
-            backends.append("custom SRBMiner build for any manually supplied modes")
-        }
         if backends.isEmpty {
-            return "Apple Silicon mode: install the managed backends from Setup to enable XMRig and cpuminer-scash. UselethMiner only becomes available after its official macOS package is installed to /usr/local/uselethminer. Your payout coin, algorithm, hardware, and backend remain separate settings."
+            return "Apple Silicon mode: install the managed backends from Setup to enable XMRig and cpuminer-scash. This launcher only advertises backends that it can bundle, verify, and update safely on macOS."
         }
         return "Apple Silicon supported backends: \(backends.joined(separator: " | "))."
     }
@@ -543,6 +594,7 @@ final class NativeAppModel: ObservableObject {
 
     func handleSimpleFormChange() {
         saveFormState()
+        scheduleWalletStatsRefresh()
     }
 
     func selectCoin(_ coin: CoinOption) {
@@ -552,6 +604,10 @@ final class NativeAppModel: ObservableObject {
 
     func refreshCoinCatalog() {
         fetchCoins(userInitiated: true)
+    }
+
+    func refreshWalletStatsNow() {
+        scheduleWalletStatsRefresh(immediate: true)
     }
 
     func displayWallet() -> String {
@@ -567,6 +623,263 @@ final class NativeAppModel: ObservableObject {
     func displayWorker() -> String {
         let worker = sanitizeWorker(workerName)
         return worker
+    }
+
+    // Wallet lookups are debounced so typing in the address field does not
+    // hammer the public API on every keystroke, while still allowing explicit
+    // refreshes and periodic polling once a wallet is active.
+    private func scheduleWalletStatsRefresh(immediate: Bool = false) {
+        pendingWalletStatsRefresh?.cancel()
+        let wallet = walletAddress.trimmingCharacters(in: .whitespacesAndNewlines)
+        let coin = sanitizeCoin(coinSymbol)
+        guard !wallet.isEmpty, !coin.isEmpty else {
+            walletStatsRefreshTimer?.invalidate()
+            resetWalletStats(status: "Enter a wallet address to load unMineable stats.")
+            return
+        }
+
+        let work = DispatchWorkItem { [weak self] in
+            self?.refreshWalletStats(for: wallet, coin: coin)
+        }
+        pendingWalletStatsRefresh = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + (immediate ? 0 : 0.6), execute: work)
+    }
+
+    // The wallet stats flow matches the official site: resolve an address to
+    // an account UUID first, then query the account-level stats and summary
+    // endpoints for balances, payout history, workers, and aggregate hashrate.
+    private func refreshWalletStats(for wallet: String, coin: String) {
+        guard matchesCurrentWalletSelection(wallet: wallet, coin: coin) else { return }
+        guard let lookupURL = walletLookupURL(wallet: wallet, coin: coin) else {
+            resetWalletStats(status: "Could not build the wallet stats request.")
+            return
+        }
+
+        isRefreshingWalletStats = true
+        walletStatsStatusText = "Refreshing wallet stats..."
+
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.timeoutIntervalForRequest = 10
+        configuration.timeoutIntervalForResource = 20
+        let session = URLSession(configuration: configuration)
+
+        session.dataTask(with: lookupURL) { [weak self] data, response, error in
+            guard let self else { return }
+
+            guard error == nil, let data, let http = response as? HTTPURLResponse, (200 ..< 300).contains(http.statusCode) else {
+                Task { @MainActor in
+                    guard self.matchesCurrentWalletSelection(wallet: wallet, coin: coin) else { return }
+                    self.isRefreshingWalletStats = false
+                    self.walletStatsStatusText = "Could not load wallet stats from unMineable."
+                }
+                return
+            }
+
+            let decoder = JSONDecoder()
+            guard let lookup = try? decoder.decode(UnmineableAddressLookupResponse.self, from: data) else {
+                Task { @MainActor in
+                    guard self.matchesCurrentWalletSelection(wallet: wallet, coin: coin) else { return }
+                    self.isRefreshingWalletStats = false
+                    self.walletStatsStatusText = "Wallet stats response could not be parsed."
+                }
+                return
+            }
+
+            let uuid = (lookup.data.uuid ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !uuid.isEmpty else {
+                Task { @MainActor in
+                    guard self.matchesCurrentWalletSelection(wallet: wallet, coin: coin) else { return }
+                    self.isRefreshingWalletStats = false
+                    self.walletStatsStatusText = "unMineable did not return a wallet stats record for this address yet."
+                    self.walletResolvedNetworkText = lookup.data.network ?? "-"
+                    self.walletBalanceText = lookup.data.balance ?? "--"
+                    self.walletThresholdText = lookup.data.paymentThreshold ?? "--"
+                    self.walletPaidText = "--"
+                    self.walletLastPaymentText = "No payouts yet"
+                    self.walletAggregateHashrateText = "--"
+                    self.walletWorkerCountText = "--"
+                    self.walletAlgorithmCountText = "--"
+                    self.walletStatsTimestampText = ""
+                }
+                return
+            }
+
+            guard let statsURL = URL(string: "https://api.unmineable.com/v5/account/\(uuid)/stats"),
+                  let summaryURL = URL(string: "https://api.unmineable.com/v5/account/\(uuid)/summary")
+            else {
+                Task { @MainActor in
+                    guard self.matchesCurrentWalletSelection(wallet: wallet, coin: coin) else { return }
+                    self.isRefreshingWalletStats = false
+                    self.walletStatsStatusText = "Could not build the detailed wallet stats requests."
+                }
+                return
+            }
+
+            let group = DispatchGroup()
+            var decodedStats: UnmineableAccountStatsResponse?
+            var decodedSummary: UnmineableAccountSummaryResponse?
+
+            group.enter()
+            session.dataTask(with: statsURL) { data, response, _ in
+                defer { group.leave() }
+                guard let data, let http = response as? HTTPURLResponse, (200 ..< 300).contains(http.statusCode) else { return }
+                decodedStats = try? decoder.decode(UnmineableAccountStatsResponse.self, from: data)
+            }.resume()
+
+            group.enter()
+            session.dataTask(with: summaryURL) { data, response, _ in
+                defer { group.leave() }
+                guard let data, let http = response as? HTTPURLResponse, (200 ..< 300).contains(http.statusCode) else { return }
+                decodedSummary = try? decoder.decode(UnmineableAccountSummaryResponse.self, from: data)
+            }.resume()
+
+            group.notify(queue: .main) {
+                Task { @MainActor in
+                    guard self.matchesCurrentWalletSelection(wallet: wallet, coin: coin) else { return }
+
+                    let stats = decodedStats?.data
+                    let summary = decodedSummary?.data
+                    self.walletResolvedNetworkText = lookup.data.network ?? stats?.network ?? "-"
+                    self.walletBalanceText = stats?.balance ?? lookup.data.balance ?? "--"
+                    self.walletThresholdText = stats?.paymentThreshold ?? lookup.data.paymentThreshold ?? "--"
+                    self.walletPaidText = stats?.paid ?? "0"
+                    self.walletLastPaymentText = self.formatLastPayment(stats?.lastPayment)
+                    self.walletAggregateHashrateText = self.formatAggregateHashrate(summary?.raw)
+                    self.walletWorkerCountText = self.formatCount(summary?.raw?.workerCount)
+                    self.walletAlgorithmCountText = self.formatCount(summary?.raw?.algorithmCount)
+                    self.walletStatsTimestampText = self.formatWalletStatsTimestamp(summary?.timestamp)
+                    self.walletStatsStatusText = self.makeWalletStatsStatus(
+                        stats: stats,
+                        summary: summary,
+                        wallet: wallet,
+                        coin: coin
+                    )
+                    self.isRefreshingWalletStats = false
+                    self.restartWalletStatsTimer()
+                }
+            }
+        }.resume()
+    }
+
+    private func restartWalletStatsTimer() {
+        walletStatsRefreshTimer?.invalidate()
+        walletStatsRefreshTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                self?.scheduleWalletStatsRefresh(immediate: true)
+            }
+        }
+    }
+
+    private func resetWalletStats(status: String) {
+        walletStatsStatusText = status
+        walletResolvedNetworkText = "-"
+        walletBalanceText = "--"
+        walletThresholdText = "--"
+        walletPaidText = "--"
+        walletLastPaymentText = "No payouts yet"
+        walletAggregateHashrateText = "--"
+        walletWorkerCountText = "--"
+        walletAlgorithmCountText = "--"
+        walletStatsTimestampText = ""
+        isRefreshingWalletStats = false
+    }
+
+    private func matchesCurrentWalletSelection(wallet: String, coin: String) -> Bool {
+        walletAddress.trimmingCharacters(in: .whitespacesAndNewlines) == wallet && sanitizeCoin(coinSymbol) == coin
+    }
+
+    private func walletLookupURL(wallet: String, coin: String) -> URL? {
+        let allowed = CharacterSet(charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~")
+        guard let encodedWallet = wallet.addingPercentEncoding(withAllowedCharacters: allowed) else {
+            return nil
+        }
+        var components = URLComponents(string: "https://api.unmineable.com/v5/address/\(encodedWallet)")
+        components?.queryItems = [URLQueryItem(name: "coin", value: coin)]
+        return components?.url
+    }
+
+    private func makeWalletStatsStatus(
+        stats: UnmineableAccountStatsData?,
+        summary: UnmineableAccountSummaryData?,
+        wallet: String,
+        coin: String
+    ) -> String {
+        var details: [String] = []
+        if let count = summary?.raw?.workerCount {
+            details.append("\(count) active worker\(count == 1 ? "" : "s")")
+        }
+        if let algorithmCount = summary?.raw?.algorithmCount {
+            details.append("\(algorithmCount) active algorithm\(algorithmCount == 1 ? "" : "s")")
+        }
+        if let balance = stats?.balance, !balance.isEmpty {
+            details.append("balance \(balance) \(coin)")
+        }
+        if details.isEmpty {
+            return "Wallet stats loaded for \(displayWalletValue(wallet))."
+        }
+        return "Wallet stats loaded for \(displayWalletValue(wallet)) on \(stats?.network ?? coin): \(details.joined(separator: " | "))."
+    }
+
+    private func displayWalletValue(_ wallet: String) -> String {
+        if wallet.count <= 24 {
+            return wallet
+        }
+        return "\(wallet.prefix(10))...\(wallet.suffix(10))"
+    }
+
+    private func formatAggregateHashrate(_ raw: UnmineableAccountSummaryRaw?) -> String {
+        guard let entries = raw?.hr, !entries.isEmpty else {
+            return "--"
+        }
+        return entries
+            .sorted { $0.key < $1.key }
+            .map { "\(formatAlgorithmDisplayName($0.key)) \($0.value)" }
+            .joined(separator: " | ")
+    }
+
+    private func formatAlgorithmDisplayName(_ raw: String) -> String {
+        switch raw.lowercased() {
+        case "ghostrider": return "GhostRider"
+        case "randomx": return "RandomX"
+        case "kawpow": return "KawPow"
+        case "autolykos": return "Autolykos"
+        case "etchash": return "Etchash"
+        case "ethash": return "Ethash"
+        default:
+            return raw
+                .split(separator: "_")
+                .map { $0.prefix(1).uppercased() + $0.dropFirst() }
+                .joined(separator: " ")
+        }
+    }
+
+    private func formatCount(_ value: Int?) -> String {
+        guard let value else { return "--" }
+        return String(value)
+    }
+
+    private func formatWalletStatsTimestamp(_ milliseconds: Double?) -> String {
+        guard let milliseconds else { return "" }
+        let date = Date(timeIntervalSince1970: milliseconds / 1000.0)
+        let formatter = DateFormatter()
+        formatter.dateStyle = .none
+        formatter.timeStyle = .short
+        return "Updated \(formatter.string(from: date))"
+    }
+
+    private func formatLastPayment(_ raw: LossyString?) -> String {
+        guard let value = raw?.value.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else {
+            return "No payouts yet"
+        }
+        if let numeric = Double(value) {
+            let seconds = numeric > 1_000_000_000_000 ? numeric / 1000.0 : numeric
+            let date = Date(timeIntervalSince1970: seconds)
+            let formatter = DateFormatter()
+            formatter.dateStyle = .medium
+            formatter.timeStyle = .short
+            return formatter.string(from: date)
+        }
+        return value
     }
 
     func clearMinerLogs() {
@@ -695,27 +1008,6 @@ final class NativeAppModel: ObservableObject {
             }
             command = buildCPUMinerScashCommand(cfg: cfg, cpuminerAlgo: cpuminerAlgo, coin: coin, wallet: wallet, worker: worker, referral: referral)
             mode = "cpu"
-        case .uselethminer:
-            guard cfg.uselethSupported else {
-                warningText = "\(cfg.label) is not supported by UselethMiner."
-                return
-            }
-            command = buildUselethCommand(cfg: cfg, coin: coin, wallet: wallet, worker: worker, referral: referral)
-            if hardware == .gpu {
-                mode = "gpu"
-            } else if hardware == .auto {
-                mode = "cpu+gpu"
-            } else {
-                mode = "cpu"
-            }
-        case .srbminer:
-            do {
-                command = try buildSRBCommand(cfg: cfg, coin: coin, wallet: wallet, worker: worker, referral: referral)
-                mode = command.contains("--disable-cpu") ? "gpu" : "cpu"
-            } catch {
-                warningText = error.localizedDescription
-                return
-            }
         case .auto:
             warningText = "No backend selected."
             return
@@ -777,9 +1069,6 @@ final class NativeAppModel: ObservableObject {
             isMining = true
             statusPill = "Mining"
             statusText = "Running via \(picked.displayName) (\(mode))"
-            if isAppleSilicon(), mode == "gpu" {
-                warningText = "Apple Silicon GPU mining support is miner-dependent; if it fails, switch to CPU."
-            }
             saveFormState()
         } catch {
             pipe.fileHandleForReading.readabilityHandler = nil
@@ -814,15 +1103,6 @@ final class NativeAppModel: ObservableObject {
             return
         }
 
-        if target == .srbminer || target == .uselethminer {
-            installStatusText = "\(target.displayName) is not available as a managed in-app installer target."
-            if target == .uselethminer {
-                warningText = "Install the official UselethMiner macOS package separately so it is present at /usr/local/uselethminer."
-            } else {
-                warningText = "Add a compatible custom miner path manually instead of using an installer."
-            }
-            return
-        }
         guard let scriptURL = bundledInstallerScriptURL(target: target) else {
             warningText = "Installer is missing from the app bundle for \(target.displayName)."
             return
@@ -894,10 +1174,6 @@ final class NativeAppModel: ObservableObject {
                 envName = "XMRIG_PATH"
             case .cpuminerScash:
                 envName = "CPUMINER_SCASH_PATH"
-            case .uselethminer:
-                envName = "USELETHMINER_PATH"
-            case .srbminer:
-                envName = "SRBMINER_PATH"
             }
 
             let envOverride = ProcessInfo.processInfo.environment[envName]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
@@ -924,10 +1200,8 @@ final class NativeAppModel: ObservableObject {
         switch target {
         case .xmrig:
             rawInput = xmrigPathOverride
-        case .cpuminerScash, .uselethminer:
-            rawInput = configMinerPaths[target.rawValue] ?? ""
-        case .srbminer:
-            rawInput = srbminerPathOverride
+        case .cpuminerScash:
+            rawInput = cpuminerPathOverride
         }
 
         let trimmed = rawInput.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -956,10 +1230,8 @@ final class NativeAppModel: ObservableObject {
         switch target {
         case .xmrig:
             xmrigPathOverride = ""
-        case .cpuminerScash, .uselethminer:
-            break
-        case .srbminer:
-            srbminerPathOverride = ""
+        case .cpuminerScash:
+            cpuminerPathOverride = ""
         }
         saveConfig()
         refreshMinerAvailabilityText()
@@ -994,19 +1266,14 @@ final class NativeAppModel: ObservableObject {
                         ok = true
                     }
 
-                    switch target {
-                    case .uselethminer:
-                        lines.append("  version: package payload installed (version probe not exposed by binary)")
-                    default:
-                        let version = Self.runCapture(executable: path, arguments: ["--version"])
-                        if let first = Self.firstLine(version.output), !first.isEmpty {
-                            lines.append("  version: \(first)")
-                            ok = true
-                        } else if version.code == 0 {
-                            lines.append("  warning: version output was empty.")
-                        } else {
-                            lines.append("  warning: version check exit code \(version.code).")
-                        }
+                    let version = Self.runCapture(executable: path, arguments: ["--version"])
+                    if let first = Self.firstLine(version.output), !first.isEmpty {
+                        lines.append("  version: \(first)")
+                        ok = true
+                    } else if version.code == 0 {
+                        lines.append("  warning: version output was empty.")
+                    } else {
+                        lines.append("  warning: version check exit code \(version.code).")
                     }
                 } else {
                     lines.append("  warning: binary missing or not executable.")
@@ -1162,88 +1429,6 @@ final class NativeAppModel: ObservableObject {
         ]
     }
 
-    private func buildUselethCommand(
-        cfg: AlgorithmConfig,
-        coin: String,
-        wallet: String,
-        worker: String,
-        referral: String
-    ) -> [String] {
-        var user = "\(coin):\(wallet).\(worker)"
-        if !referral.isEmpty {
-            user += "#\(referral)"
-        }
-
-        var cmd = [
-            effectiveMinerPath(target: .uselethminer).path,
-            "--mine",
-            "--host", cfg.host,
-            "--port", String(selectedPort),
-            "--username", user,
-            "--password", "x",
-            "--threads", String(max(1, threadCountFromPercent())),
-        ]
-
-        if hardware == .gpu {
-            cmd += ["--flavor", "none", "--flavor-gpu", "metal"]
-        } else if hardware == .auto {
-            cmd += ["--flavor", "armv8af", "--size", "88", "--flavor-gpu", "metal"]
-        } else {
-            cmd += ["--flavor", "armv8af", "--size", "88"]
-        }
-
-        return cmd
-    }
-
-    private func buildSRBCommand(
-        cfg: AlgorithmConfig,
-        coin: String,
-        wallet: String,
-        worker: String,
-        referral: String
-    ) throws -> [String] {
-        // Custom secondary miners can run CPU or GPU modes; the command builder
-        // selects the matching algorithm and disables the unused execution path.
-        var algo: String?
-        var disableCPU = false
-        var disableGPU = false
-
-        if hardware == .gpu || (hardware == .auto && cfg.srbGpuAlgo != nil) {
-            algo = cfg.srbGpuAlgo
-            disableCPU = true
-        } else if cfg.srbCpuAlgo != nil {
-            algo = cfg.srbCpuAlgo
-            disableGPU = true
-        }
-
-        guard let selectedAlgo = algo else {
-            throw NSError(domain: "macunmineable", code: 1, userInfo: [NSLocalizedDescriptionKey: "\(cfg.label) is not supported by SRBMiner for this hardware."])
-        }
-
-        var walletPart = "\(coin):\(wallet)"
-        if !referral.isEmpty {
-            walletPart += "#\(referral)"
-        }
-
-        var cmd = [
-            effectiveMinerPath(target: .srbminer).path,
-            "--algorithm", selectedAlgo,
-            "--pool", "\(cfg.host):\(selectedPort)",
-            "--wallet", walletPart,
-            "--worker", worker,
-            "--password", "x",
-        ]
-
-        if disableCPU {
-            cmd.append("--disable-cpu")
-        }
-        if disableGPU {
-            cmd.append("--disable-gpu")
-            cmd += ["--cpu-threads", String(threadCountFromPercent())]
-        }
-        return cmd
-    }
-
     private func pickBackend(cfg: AlgorithmConfig, available: [String: Bool]) throws -> BackendChoice {
         // Backend selection is separate from payout coin selection. The picker
         // decides which executable can satisfy the chosen algorithm locally.
@@ -1267,33 +1452,8 @@ final class NativeAppModel: ObservableObject {
                 throw NSError(domain: "macunmineable", code: 12, userInfo: [NSLocalizedDescriptionKey: "cpuminer-scash is CPU-only."])
             }
             return .cpuminerScash
-        case .uselethminer:
-            guard available["uselethminer"] == true else {
-                throw NSError(domain: "macunmineable", code: 13, userInfo: [NSLocalizedDescriptionKey: "UselethMiner payload is not available."])
-            }
-            guard cfg.uselethSupported else {
-                throw NSError(domain: "macunmineable", code: 14, userInfo: [NSLocalizedDescriptionKey: "\(cfg.label) is not supported by UselethMiner."])
-            }
-            return .uselethminer
-        case .srbminer:
-            guard available["srbminer"] == true else {
-                throw NSError(domain: "macunmineable", code: 4, userInfo: [NSLocalizedDescriptionKey: "SRBMiner binary is not available."])
-            }
-            if hardware == .gpu && cfg.srbGpuAlgo == nil {
-                throw NSError(domain: "macunmineable", code: 5, userInfo: [NSLocalizedDescriptionKey: "\(cfg.label) has no GPU mode in SRBMiner."])
-            }
-            if hardware == .cpu && cfg.srbCpuAlgo == nil {
-                throw NSError(domain: "macunmineable", code: 6, userInfo: [NSLocalizedDescriptionKey: "\(cfg.label) has no CPU mode in SRBMiner."])
-            }
-            return .srbminer
         case .auto:
             if hardware == .gpu {
-                if available["uselethminer"] == true, cfg.uselethSupported {
-                    return .uselethminer
-                }
-                if available["srbminer"] == true, cfg.srbGpuAlgo != nil {
-                    return .srbminer
-                }
                 throw NSError(domain: "macunmineable", code: 7, userInfo: [NSLocalizedDescriptionKey: "No GPU backend available for \(cfg.label)."])
             }
             if hardware == .cpu {
@@ -1303,29 +1463,14 @@ final class NativeAppModel: ObservableObject {
                 if available["cpuminer_scash"] == true, cfg.cpuminerAlgo != nil {
                     return .cpuminerScash
                 }
-                if available["uselethminer"] == true, cfg.uselethSupported {
-                    return .uselethminer
-                }
-                if available["srbminer"] == true, cfg.srbCpuAlgo != nil {
-                    return .srbminer
-                }
                 throw NSError(domain: "macunmineable", code: 8, userInfo: [NSLocalizedDescriptionKey: "No CPU backend available for \(cfg.label)."])
             }
 
-            if available["uselethminer"] == true, cfg.uselethSupported {
-                return .uselethminer
-            }
-            if available["srbminer"] == true, cfg.srbGpuAlgo != nil {
-                return .srbminer
-            }
             if available["xmrig"] == true, cfg.xmrigAlgo != nil {
                 return .xmrig
             }
             if available["cpuminer_scash"] == true, cfg.cpuminerAlgo != nil {
                 return .cpuminerScash
-            }
-            if available["srbminer"] == true, cfg.srbCpuAlgo != nil {
-                return .srbminer
             }
             throw NSError(domain: "macunmineable", code: 9, userInfo: [NSLocalizedDescriptionKey: "No backend available for \(cfg.label)."])
         }
@@ -1336,21 +1481,15 @@ final class NativeAppModel: ObservableObject {
         return [
             "xmrig": fileManager.fileExists(atPath: paths["xmrig"] ?? "") && fileManager.isExecutableFile(atPath: paths["xmrig"] ?? ""),
             "cpuminer_scash": fileManager.fileExists(atPath: paths["cpuminer_scash"] ?? "") && fileManager.isExecutableFile(atPath: paths["cpuminer_scash"] ?? ""),
-            "uselethminer": fileManager.fileExists(atPath: paths["uselethminer"] ?? "") && fileManager.isExecutableFile(atPath: paths["uselethminer"] ?? ""),
-            "srbminer": fileManager.fileExists(atPath: paths["srbminer"] ?? "") && fileManager.isExecutableFile(atPath: paths["srbminer"] ?? ""),
         ]
     }
 
     private func refreshMinerAvailabilityText() {
         let available = minerAvailable()
-        var parts = [
+        let parts = [
             "xmrig: \(available["xmrig"] == true ? "ready" : "missing")",
             "cpuminer-scash: \(available["cpuminer_scash"] == true ? "ready" : "missing")",
-            "uselethminer: \(available["uselethminer"] == true ? "ready" : "missing")",
         ]
-        if available["srbminer"] == true {
-            parts.append("custom srbminer: ready")
-        }
         minerText = parts.joined(separator: " | ")
     }
 
@@ -1369,8 +1508,6 @@ final class NativeAppModel: ObservableObject {
         [
             "xmrig": effectiveMinerPath(target: .xmrig).path,
             "cpuminer_scash": effectiveMinerPath(target: .cpuminerScash).path,
-            "uselethminer": effectiveMinerPath(target: .uselethminer).path,
-            "srbminer": effectiveMinerPath(target: .srbminer).path,
         ]
     }
 
@@ -1388,10 +1525,6 @@ final class NativeAppModel: ObservableObject {
             envName = "XMRIG_PATH"
         case .cpuminerScash:
             envName = "CPUMINER_SCASH_PATH"
-        case .uselethminer:
-            envName = "USELETHMINER_PATH"
-        case .srbminer:
-            envName = "SRBMINER_PATH"
         }
         if let envValue = ProcessInfo.processInfo.environment[envName], !envValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             return URL(fileURLWithPath: envValue)
@@ -1408,10 +1541,6 @@ final class NativeAppModel: ObservableObject {
             return runtimeURL.appendingPathComponent("miners/xmrig/xmrig")
         case .cpuminerScash:
             return runtimeURL.appendingPathComponent("miners/cpuminer-scash/minerd")
-        case .uselethminer:
-            return URL(fileURLWithPath: "/usr/local/uselethminer/uselethminer")
-        case .srbminer:
-            return runtimeURL.appendingPathComponent("miners/srbminer/SRBMiner-MULTI")
         }
     }
 
@@ -1502,7 +1631,6 @@ final class NativeAppModel: ObservableObject {
         syncRuntimeFolder(named: "miners", from: bundleRuntime)
         ensureExecutableBit(at: runtimeURL.appendingPathComponent("miners/xmrig/xmrig").path)
         ensureExecutableBit(at: runtimeURL.appendingPathComponent("miners/cpuminer-scash/minerd").path)
-        ensureExecutableBit(at: runtimeURL.appendingPathComponent("miners/srbminer/SRBMiner-MULTI").path)
     }
 
     // Existing runtime folders are merged forward rather than replaced so local
@@ -1551,7 +1679,7 @@ final class NativeAppModel: ObservableObject {
         else {
             configMinerPaths = [:]
             xmrigPathOverride = ""
-            srbminerPathOverride = ""
+            cpuminerPathOverride = ""
             return
         }
 
@@ -1563,12 +1691,12 @@ final class NativeAppModel: ObservableObject {
             output[key] = value
         }
         xmrigPathOverride = configMinerPaths["xmrig"] ?? ""
-        srbminerPathOverride = configMinerPaths["srbminer"] ?? ""
+        cpuminerPathOverride = configMinerPaths["cpuminer_scash"] ?? ""
     }
 
     private func saveConfig() {
         xmrigPathOverride = configMinerPaths["xmrig"] ?? ""
-        srbminerPathOverride = configMinerPaths["srbminer"] ?? ""
+        cpuminerPathOverride = configMinerPaths["cpuminer_scash"] ?? ""
 
         let payload: [String: Any] = ["miner_paths": configMinerPaths]
         do {
@@ -1678,10 +1806,6 @@ final class NativeAppModel: ObservableObject {
             scriptName = "install_xmrig.sh"
         case .cpuminerScash:
             scriptName = "install_cpuminer_scash.sh"
-        case .uselethminer:
-            return nil
-        case .srbminer:
-            return nil
         }
 
         if let bundled = Bundle.main.resourceURL?.appendingPathComponent("runtime/scripts/\(scriptName)"),
@@ -1705,10 +1829,6 @@ final class NativeAppModel: ObservableObject {
             return "XMRIG_PATH"
         case .cpuminerScash:
             return "CPUMINER_SCASH_PATH"
-        case .uselethminer:
-            return "USELETHMINER_PATH"
-        case .srbminer:
-            return "SRBMINER_PATH"
         }
     }
 
@@ -1757,7 +1877,7 @@ final class NativeAppModel: ObservableObject {
         if userInitiated {
             coinCatalogStatusText = "Refreshing coin catalog..."
         }
-        guard let url = URL(string: "https://api.unminable.com/v5/coin") else { return }
+        guard let url = URL(string: "https://api.unmineable.com/v5/coin") else { return }
         let configuration = URLSessionConfiguration.ephemeral
         configuration.timeoutIntervalForRequest = 10
         configuration.timeoutIntervalForResource = 20
@@ -1953,7 +2073,7 @@ struct NativeSettingsView: View {
                 .help("Install the built-in managed miners automatically when the app detects one is missing.")
             Toggle("Validate binaries on launch", isOn: $autoValidateOnLaunch)
                 .help("Run a startup validation pass that checks miner paths, executability, and architecture.")
-            Text("Managed Apple Silicon installers cover XMRig and cpuminer-scash. UselethMiner is only enabled after its official macOS package installs to /usr/local/uselethminer.")
+            Text("Managed Apple Silicon installers currently cover XMRig and cpuminer-scash only. The launcher hides unsupported macOS miner backends instead of presenting dead paths.")
                 .font(.system(size: 12))
                 .foregroundStyle(.secondary)
 
@@ -2496,11 +2616,9 @@ struct SetupSheetView: View {
                             }
 
                             SetupSection(title: "Official Miner Matrix") {
-                                WrappedNote(text: "Checked against official upstream releases and startup behavior on March 24, 2026.")
-                                WrappedNote(text: "XMRig: macOS arm64 release available")
-                                WrappedNote(text: "cpuminer-scash: macOS Sonoma arm64 release available")
-                                WrappedNote(text: "UselethMiner: official macOS arm64 package exists, but upstream requires installation to /usr/local/uselethminer; it is not a managed in-app backend")
-                                WrappedNote(text: "SRBMiner-MULTI: no normal macOS release asset")
+                                WrappedNote(text: "Checked against official upstream releases and local startup behavior on April 7, 2026.")
+                                WrappedNote(text: "XMRig: official macOS arm64 release available and locally verified against unMineable RandomX, GhostRider, and KawPow pools.")
+                                WrappedNote(text: "cpuminer-scash: official macOS Sonoma arm64 release available and locally verified as a native RandomX-capable Apple Silicon binary.")
                                 WrappedNote(text: "nanominer: latest release is Linux/Windows only")
                                 WrappedNote(text: "BzMiner: latest release is Linux/Windows only")
                                 WrappedNote(text: "OneZeroMiner: generic tarball is Linux ELF x86-64, not macOS")
@@ -2509,9 +2627,7 @@ struct SetupSheetView: View {
                             SetupSection(title: "Installed Miner Binaries") {
                                 LabeledContent("XMRig installed", value: bundled[.xmrig] == true ? "Yes" : "No")
                                 LabeledContent("cpuminer-scash installed", value: bundled[.cpuminerScash] == true ? "Yes" : "No")
-                                LabeledContent("UselethMiner detected", value: bundled[.uselethminer] == true ? "Yes" : "No")
-                                WrappedNote(text: "Expected external path: /usr/local/uselethminer/uselethminer")
-                                LabeledContent("Custom SRBMiner present", value: model.hasUsableSRBMinerBinary ? "Yes" : "No")
+                                WrappedNote(text: "Only the bundled managed backends are surfaced here. Unsupported external miners are kept out of the launcher to avoid false promises on Apple Silicon.")
                             }
 
                         case .miners:
@@ -2548,7 +2664,7 @@ struct SetupSheetView: View {
                                     .help("Resolve and display the upstream cpuminer-scash release without changing local files.")
                                 }
 
-                                WrappedNote(text: "Managed miner downloads are verified before install. Tarball-based miners use upstream SHA256 manifests. UselethMiner is excluded here because its upstream macOS package expects a system install path instead of an app-managed runtime copy.")
+                                WrappedNote(text: "Managed miner downloads are verified before install. Tarball-based miners use upstream SHA256 manifests. The app only offers installers for backends it can verify and maintain safely on Apple Silicon.")
                             }
 
                         case .paths:
@@ -2560,14 +2676,13 @@ struct SetupSheetView: View {
                                     onClear: { model.clearPathOverride(target: .xmrig) }
                                 )
                                 pathEditor(
-                                    title: "SRBMiner Binary Path",
-                                    text: $model.srbminerPathOverride,
-                                    onSave: { model.savePathOverride(target: .srbminer) },
-                                    onClear: { model.clearPathOverride(target: .srbminer) }
+                                    title: "cpuminer-scash Binary Path",
+                                    text: $model.cpuminerPathOverride,
+                                    onSave: { model.savePathOverride(target: .cpuminerScash) },
+                                    onClear: { model.clearPathOverride(target: .cpuminerScash) }
                                 )
-                                WrappedNote(text: "Only add SRBMiner here if you already have a macOS-compatible custom build. The app no longer surfaces it as a normal Apple Silicon installer target.")
-                                WrappedNote(text: "UselethMiner is only recognized when the official upstream package has installed it to /usr/local/uselethminer.")
-                                WrappedNote(text: "Built-in Apple Silicon miners are limited to the managed backends the app can verify and update safely.")
+                                WrappedNote(text: "Custom path overrides are intended for replacing the bundled XMRig or cpuminer-scash binaries with another compatible native macOS Mach-O build.")
+                                WrappedNote(text: "Unsupported external miners are deliberately hidden from this launcher rather than exposed as unverified options.")
                             }
 
                         case .validation:
@@ -2777,9 +2892,29 @@ struct InfoSheetView: View {
                     Text(model.statusText)
                     Text("Coin: \(model.coinSymbol)")
                     Text("Wallet: \(model.displayWallet())")
+                    Text("Wallet network: \(model.walletResolvedNetworkText)")
                     Text("Algorithm: \(model.selectedAlgorithm?.label ?? "-")")
                     Text("Backend: \(model.displayedBackendName)")
                     Text("Worker: \(model.displayWorker())")
+                }
+
+                Section("Wallet Stats") {
+                    Button(model.isRefreshingWalletStats ? "Refreshing..." : "Refresh Wallet Stats") {
+                        model.refreshWalletStatsNow()
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(model.isRefreshingWalletStats || model.walletAddress.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .help("Refresh wallet balance, payout threshold, and aggregate unMineable wallet activity.")
+                    Text(model.walletStatsStatusText)
+                        .foregroundStyle(.secondary)
+                        .font(.system(size: 12))
+                    Text("Current balance: \(model.walletBalanceText)")
+                    Text("Threshold: \(model.walletThresholdText)")
+                    Text("Wallet aggregate: \(model.walletAggregateHashrateText)")
+                    Text("Active workers: \(model.walletWorkerCountText)")
+                    Text("Active algorithms: \(model.walletAlgorithmCountText)")
+                    Text("Total paid: \(model.walletPaidText)")
+                    Text("Last payment: \(model.walletLastPaymentText)")
                 }
 
                 Section("System") {
@@ -2869,6 +3004,7 @@ struct MineDashboardView: View {
                     VStack(alignment: .leading, spacing: 6) {
                         SessionLine(label: "Address", value: model.displayWallet(), theme: theme, helpText: model.walletAddress.isEmpty ? "Wallet address is not set." : model.walletAddress)
                         SessionLine(label: "Coin", value: model.coinSymbol, theme: theme)
+                        SessionLine(label: "Network", value: model.walletResolvedNetworkText, theme: theme, helpText: "Network reported by unMineable for the selected wallet and coin.")
                         SessionLine(label: "Algorithm", value: model.selectedAlgorithm?.label ?? "-", theme: theme)
                         SessionLine(label: "Device", value: model.hardware.displayName, theme: theme)
                         SessionLine(label: "Backend", value: model.displayedBackendName, theme: theme)
@@ -2985,6 +3121,49 @@ struct MineDashboardView: View {
                             Text(model.warningText)
                                 .font(.system(size: 12, weight: .semibold, design: .rounded))
                                 .foregroundStyle(Color.orange)
+                        }
+                    }
+                }
+
+                DashboardCard(theme: theme) {
+                    VStack(alignment: .leading, spacing: 16) {
+                        HStack(alignment: .firstTextBaseline, spacing: 12) {
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text("Wallet Stats")
+                                    .font(.system(size: 16, weight: .bold, design: .rounded))
+                                    .foregroundStyle(theme.primaryText)
+                                Text(model.walletStatsStatusText)
+                                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                                    .foregroundStyle(theme.secondaryText)
+                                    .lineLimit(2)
+                            }
+                            Spacer()
+                            Button(model.isRefreshingWalletStats ? "Refreshing..." : "Refresh") {
+                                model.refreshWalletStatsNow()
+                            }
+                            .buttonStyle(.bordered)
+                            .disabled(model.isRefreshingWalletStats || model.walletAddress.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                            .help("Refresh wallet balance, threshold, and aggregate unMineable wallet activity.")
+                        }
+
+                        HStack(alignment: .bottom, spacing: 20) {
+                            MetricBlock(title: "Current Balance", value: model.walletBalanceText, theme: theme)
+                            MetricBlock(title: "Threshold", value: model.walletThresholdText, theme: theme)
+                            Spacer(minLength: 0)
+                        }
+
+                        VStack(alignment: .leading, spacing: 6) {
+                            SessionLine(label: "Wallet Aggregate", value: model.walletAggregateHashrateText, theme: theme, helpText: "Aggregate hashrate reported by unMineable for this wallet. This can include this app and any other miners pointed at the same address.")
+                            SessionLine(label: "Active Workers", value: model.walletWorkerCountText, theme: theme, helpText: "Active workers reported by unMineable for this wallet.")
+                            SessionLine(label: "Algorithms", value: model.walletAlgorithmCountText, theme: theme, helpText: "Distinct active algorithms reported by unMineable for this wallet.")
+                            SessionLine(label: "Total Paid", value: model.walletPaidText, theme: theme, helpText: "Total paid amount reported by unMineable for this wallet and selected coin.")
+                            SessionLine(label: "Last Payment", value: model.walletLastPaymentText, theme: theme, helpText: "Last payout date reported by unMineable for this wallet.")
+                        }
+
+                        if !model.walletStatsTimestampText.isEmpty {
+                            Text(model.walletStatsTimestampText)
+                                .font(.system(size: 11, weight: .medium, design: .rounded))
+                                .foregroundStyle(theme.tertiaryText)
                         }
                     }
                 }
