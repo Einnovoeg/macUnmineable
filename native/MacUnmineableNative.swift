@@ -2217,7 +2217,7 @@ struct DashboardCard<Content: View>: View {
     let theme: DashboardTheme
     let content: Content
 
-    init(padding: CGFloat = 22, theme: DashboardTheme, @ViewBuilder content: () -> Content) {
+    init(padding: CGFloat = 20, theme: DashboardTheme, @ViewBuilder content: () -> Content) {
         self.padding = padding
         self.theme = theme
         self.content = content()
@@ -2237,7 +2237,27 @@ struct DashboardCard<Content: View>: View {
             RoundedRectangle(cornerRadius: 30, style: .continuous)
                 .stroke(theme.cardStroke, lineWidth: 1)
         )
-        .shadow(color: theme.shadow, radius: 28, x: 0, y: 14)
+        .shadow(color: theme.shadow, radius: 24, x: 0, y: 12)
+    }
+}
+
+struct ChromeIconGlyph: View {
+    let systemName: String
+    let theme: DashboardTheme
+
+    var body: some View {
+        Image(systemName: systemName)
+            .font(.system(size: 15, weight: .semibold))
+            .frame(width: 34, height: 34)
+            .foregroundStyle(theme.secondaryText)
+            .background(
+                Circle()
+                    .fill(theme.chromeFill)
+            )
+            .overlay(
+                Circle()
+                    .stroke(theme.chromeStroke, lineWidth: 1)
+            )
     }
 }
 
@@ -2249,21 +2269,49 @@ struct IconChromeButton: View {
 
     var body: some View {
         Button(action: action) {
-            Image(systemName: systemName)
-                .font(.system(size: 15, weight: .semibold))
-                .frame(width: 34, height: 34)
-                .foregroundStyle(theme.secondaryText)
-                .background(
-                    Circle()
-                        .fill(theme.chromeFill)
-                )
-                .overlay(
-                    Circle()
-                        .stroke(theme.chromeStroke, lineWidth: 1)
-                )
+            ChromeIconGlyph(systemName: systemName, theme: theme)
         }
         .buttonStyle(.plain)
         .help(helpText)
+    }
+}
+
+struct ThemeChromeMenu: View {
+    let theme: DashboardTheme
+    @AppStorage(prefAppearanceModeKey) private var appearanceModeRaw = AppearanceMode.system.rawValue
+    @AppStorage(prefPaletteKey) private var paletteRaw = AccentPalette.mint.rawValue
+
+    var body: some View {
+        Menu {
+            Section("Appearance") {
+                ForEach(AppearanceMode.allCases) { mode in
+                    Button(mode.rawValue == appearanceModeRaw ? "✓ \(mode.displayName)" : mode.displayName) {
+                        appearanceModeRaw = mode.rawValue
+                    }
+                }
+            }
+
+            Section("Palette") {
+                ForEach(AccentPalette.allCases) { option in
+                    Button(option.rawValue == paletteRaw ? "✓ \(option.displayName)" : option.displayName) {
+                        paletteRaw = option.rawValue
+                    }
+                }
+            }
+
+            Divider()
+
+            Button("Open Appearance Settings…") {
+                NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+                NSApp.activate(ignoringOtherApps: true)
+            }
+        } label: {
+            ChromeIconGlyph(systemName: "paintpalette.fill", theme: theme)
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help("Change the appearance mode or accent palette.")
     }
 }
 
@@ -2587,10 +2635,7 @@ struct DashboardHeaderView: View {
             Spacer()
 
             PillView(text: model.isOnline ? "Online" : "Offline", running: model.isOnline, theme: theme)
-            IconChromeButton(systemName: "paintpalette.fill", theme: theme, helpText: "Open appearance settings.") {
-                NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
-                NSApp.activate(ignoringOtherApps: true)
-            }
+            ThemeChromeMenu(theme: theme)
             IconChromeButton(systemName: "line.3.horizontal.decrease.circle.fill", theme: theme, helpText: "Open setup tabs for overview, miner management, paths, validation, and installer tools.") {
                 activePanel = .setup
             }
@@ -3061,7 +3106,7 @@ struct MineDashboardView: View {
 
     var body: some View {
         ScrollView(showsIndicators: false) {
-            VStack(spacing: 16) {
+            VStack(spacing: 12) {
                 DashboardCard(theme: theme) {
                     HStack(alignment: .top, spacing: 16) {
                         VStack(alignment: .leading, spacing: 4) {
@@ -3075,9 +3120,9 @@ struct MineDashboardView: View {
                         Spacer()
                         CoinBadge(symbol: model.coinSymbol, theme: theme)
                     }
-                    .padding(.bottom, 18)
+                    .padding(.bottom, 14)
 
-                    VStack(alignment: .leading, spacing: 6) {
+                    VStack(alignment: .leading, spacing: 5) {
                         SessionLine(label: "Address", value: model.displayWallet(), theme: theme, helpText: model.walletAddress.isEmpty ? "Wallet address is not set." : model.walletAddress)
                         SessionLine(label: "Coin", value: model.coinSymbol, theme: theme)
                         SessionLine(label: "Algorithm", value: model.selectedAlgorithm?.label ?? "-", theme: theme)
@@ -3090,7 +3135,7 @@ struct MineDashboardView: View {
                 }
 
                 DashboardCard(theme: theme) {
-                    VStack(alignment: .leading, spacing: 16) {
+                    VStack(alignment: .leading, spacing: 14) {
                         Text("Wallet only. Worker name stays optional in Advanced.")
                             .font(.system(size: 12, weight: .semibold, design: .rounded))
                             .foregroundStyle(theme.tertiaryText)
@@ -3201,7 +3246,7 @@ struct MineDashboardView: View {
                 }
 
                 DashboardCard(padding: 16, theme: theme) {
-                    VStack(spacing: 16) {
+                    VStack(spacing: 12) {
                         HashrateSparkline(values: model.hashrateSamples, theme: theme)
 
                         HStack(alignment: .bottom, spacing: 20) {
@@ -3247,7 +3292,7 @@ struct MineDashboardView: View {
                     }
                 }
             }
-            .padding(20)
+            .padding(16)
         }
     }
 }
@@ -3259,7 +3304,7 @@ struct WalletStatsDashboardView: View {
 
     var body: some View {
         ScrollView(showsIndicators: false) {
-            VStack(spacing: 16) {
+            VStack(spacing: 12) {
                 DashboardCard(theme: theme) {
                     VStack(alignment: .leading, spacing: 16) {
                         HStack(alignment: .firstTextBaseline, spacing: 12) {
@@ -3349,7 +3394,7 @@ struct WalletStatsDashboardView: View {
                     }
                 }
             }
-            .padding(20)
+            .padding(16)
         }
     }
 }
@@ -3381,9 +3426,9 @@ struct NativeContentView: View {
     var body: some View {
         VStack(spacing: 0) {
             DashboardHeaderView(model: model, selectedTab: $selectedTab, activePanel: $activePanel, theme: theme)
-                .padding(.horizontal, 20)
-                .padding(.top, 20)
-                .padding(.bottom, 8)
+                .padding(.horizontal, 16)
+                .padding(.top, 16)
+                .padding(.bottom, 6)
 
             Group {
                 switch selectedTab {

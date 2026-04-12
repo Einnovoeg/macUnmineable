@@ -4,6 +4,30 @@ All notable changes to this project are documented in this file.
 
 This project follows Semantic Versioning for release tags.
 
+## [0.5.2] - 2026-04-12
+
+### Changed
+
+- Replaced the main-window theme shortcut with a real theme menu that changes
+  appearance mode and accent palette directly from the dashboard header.
+- Tightened card spacing, outer padding, and vertical gaps in the main window
+  so the mining dashboard fits more comfortably without requiring a slight
+  scroll on normal window sizes.
+- Reworked the generated app icon to use a darker lowercase `u` mark and a
+  cooler blue/slate palette instead of the previous mint-heavy look.
+
+### Fixed
+
+- Removed the broken header theme-button behavior where clicking the palette
+  icon only attempted to open settings instead of changing the theme.
+
+### Verification
+
+- Type-checked the native SwiftUI app after the header-control and layout
+  changes.
+- Regenerated the app icon, rebuilt the app bundle, and re-ran the full smoke
+  verification suite.
+
 ## [0.5.1] - 2026-04-08
 
 ### Changed

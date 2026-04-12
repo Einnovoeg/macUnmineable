@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 
-"""Generate a macOS app icon inspired by the unMineable mint "U" mark.
+"""Generate a macOS app icon inspired by the unMineable "u" mark.
 
 The goal is not to ship the site favicon unchanged. Instead, this script builds
-an original rounded-square application icon that keeps the recognizable mint
-color language and central "U" silhouette while fitting the native macOS app
-icon style more cleanly.
+an original rounded-square application icon with a lowercase "u" silhouette and
+a cooler blue/slate palette that fits the native macOS app icon style more
+cleanly than the earlier mint-heavy version.
 """
 
 from __future__ import annotations
@@ -17,12 +17,12 @@ from PIL import Image, ImageChops, ImageDraw, ImageFilter
 
 
 SIZE = 1024
-MINT = (156, 202, 191, 255)
-MINT_BRIGHT = (183, 235, 222, 255)
-MINT_DARK = (103, 163, 148, 255)
-GOLD = (232, 191, 116, 255)
-BG_TOP = (19, 23, 28, 255)
-BG_BOTTOM = (8, 10, 14, 255)
+INDIGO = (115, 145, 255, 255)
+INDIGO_BRIGHT = (210, 223, 255, 255)
+INDIGO_DARK = (63, 90, 185, 255)
+STEEL = (210, 221, 235, 255)
+BG_TOP = (22, 27, 40, 255)
+BG_BOTTOM = (8, 11, 18, 255)
 
 
 def vertical_gradient(size: int, top: tuple[int, int, int, int], bottom: tuple[int, int, int, int]) -> Image.Image:
@@ -66,7 +66,7 @@ def draw_icon() -> Image.Image:
     glow_mask = Image.new("RGBA", (SIZE, SIZE), (0, 0, 0, 0))
     glow_draw = ImageDraw.Draw(glow_mask)
     glow_draw.ellipse((168, 148, 856, 836), fill=(255, 255, 255, 72))
-    add_glow(canvas, glow_mask, (102, 190, 173, 90), blur=60, alpha_scale=0.55)
+    add_glow(canvas, glow_mask, (103, 132, 247, 90), blur=60, alpha_scale=0.55)
 
     ornament = Image.new("RGBA", (SIZE, SIZE), (0, 0, 0, 0))
     ornament_draw = ImageDraw.Draw(ornament)
@@ -79,44 +79,51 @@ def draw_icon() -> Image.Image:
     u_draw = ImageDraw.Draw(u_mask)
 
     stroke = 112
-    left_x = 332
-    right_x = 692
-    top_y = 248
-    bottom_y = 722
+    left_x = 348
+    right_x = 668
+    left_top_y = 352
+    right_top_y = 246
+    bottom_y = 728
 
-    # Two vertical stems.
-    u_draw.rounded_rectangle((left_x - stroke // 2, top_y, left_x + stroke // 2, bottom_y), radius=stroke // 2, fill=(255, 255, 255, 255))
-    u_draw.rounded_rectangle((right_x - stroke // 2, top_y, right_x + stroke // 2, bottom_y), radius=stroke // 2, fill=(255, 255, 255, 255))
-    # Bottom curve.
-    u_draw.pieslice((left_x - stroke // 2, bottom_y - 248, right_x + stroke // 2, bottom_y + 112), start=0, end=180, fill=(255, 255, 255, 255))
-    # Clear the top half of the bowl so the lower curve becomes a true U.
+    # Lowercase "u": shorter left stem, taller right stem, and a rounded bowl.
+    u_draw.rounded_rectangle((left_x - stroke // 2, left_top_y, left_x + stroke // 2, bottom_y), radius=stroke // 2, fill=(255, 255, 255, 255))
+    u_draw.rounded_rectangle((right_x - stroke // 2, right_top_y, right_x + stroke // 2, bottom_y), radius=stroke // 2, fill=(255, 255, 255, 255))
+    u_draw.pieslice((left_x - stroke // 2, bottom_y - 254, right_x + stroke // 2, bottom_y + 106), start=0, end=180, fill=(255, 255, 255, 255))
+
+    # Clear the upper bowl so the lower curve reads as a lowercase glyph.
     cutout = Image.new("RGBA", (SIZE, SIZE), (0, 0, 0, 0))
     cutout_draw = ImageDraw.Draw(cutout)
-    cutout_draw.rounded_rectangle((left_x + 42, top_y + 36, right_x - 42, bottom_y - 12), radius=110, fill=(0, 0, 0, 255))
+    cutout_draw.rounded_rectangle((left_x + 42, left_top_y + 28, right_x - 42, bottom_y - 12), radius=114, fill=(0, 0, 0, 255))
     u_mask = ImageChops.subtract(u_mask, cutout)
 
-    add_glow(canvas, u_mask, MINT_BRIGHT, blur=28, alpha_scale=0.75)
+    # Add a subtle glossy terminal cap on the ascender to reinforce the
+    # lowercase silhouette.
+    terminal = Image.new("RGBA", (SIZE, SIZE), (0, 0, 0, 0))
+    terminal_draw = ImageDraw.Draw(terminal)
+    terminal_draw.rounded_rectangle((right_x - stroke // 2 - 18, right_top_y - 12, right_x + stroke // 2 + 22, right_top_y + 54), radius=34, fill=(255, 255, 255, 255))
+    u_mask = ImageChops.lighter(u_mask, terminal)
 
-    u_fill = Image.new("RGBA", (SIZE, SIZE), MINT)
-    u_gradient = vertical_gradient(SIZE, MINT_BRIGHT, MINT_DARK)
+    add_glow(canvas, u_mask, INDIGO_BRIGHT, blur=28, alpha_scale=0.75)
+
+    u_fill = Image.new("RGBA", (SIZE, SIZE), INDIGO)
+    u_gradient = vertical_gradient(SIZE, INDIGO_BRIGHT, INDIGO_DARK)
     u_fill = Image.composite(u_gradient, u_fill, u_mask.getchannel("A"))
     canvas.alpha_composite(u_fill)
 
     inner_highlight = Image.new("RGBA", (SIZE, SIZE), (0, 0, 0, 0))
     highlight_draw = ImageDraw.Draw(inner_highlight)
-    highlight_draw.rounded_rectangle((left_x - stroke // 2 + 10, top_y + 6, left_x - stroke // 2 + 34, bottom_y - 56), radius=12, fill=(255, 255, 255, 40))
-    highlight_draw.rounded_rectangle((right_x - stroke // 2 + 10, top_y + 6, right_x - stroke // 2 + 34, bottom_y - 56), radius=12, fill=(255, 255, 255, 24))
+    highlight_draw.rounded_rectangle((left_x - stroke // 2 + 10, left_top_y + 8, left_x - stroke // 2 + 34, bottom_y - 54), radius=12, fill=(255, 255, 255, 38))
+    highlight_draw.rounded_rectangle((right_x - stroke // 2 + 10, right_top_y + 8, right_x - stroke // 2 + 34, bottom_y - 46), radius=12, fill=(255, 255, 255, 26))
     canvas.alpha_composite(inner_highlight)
 
-    # Mining-flavored accent: a compact angled chip/pick detail in the corner.
+    # Add a restrained metallic accent so the icon does not collapse into a
+    # flat monochrome blob at smaller macOS sizes.
     accent = Image.new("RGBA", (SIZE, SIZE), (0, 0, 0, 0))
     accent_draw = ImageDraw.Draw(accent)
-    accent_draw.rounded_rectangle((706, 210, 836, 260), radius=25, fill=GOLD)
-    accent_draw.rounded_rectangle((776, 148, 824, 326), radius=24, fill=GOLD)
-    accent = accent.rotate(18, center=(784, 238), resample=Image.Resampling.BICUBIC)
-    accent_blur = accent.filter(ImageFilter.GaussianBlur(10))
-    canvas.alpha_composite(Image.new("RGBA", (SIZE, SIZE), (0, 0, 0, 0)))
-    canvas.alpha_composite(accent_blur)
+    accent_draw.rounded_rectangle((708, 198, 826, 246), radius=24, fill=STEEL)
+    accent_draw.rounded_rectangle((772, 142, 816, 314), radius=22, fill=STEEL)
+    accent = accent.rotate(14, center=(784, 228), resample=Image.Resampling.BICUBIC)
+    canvas.alpha_composite(accent.filter(ImageFilter.GaussianBlur(8)))
     canvas.alpha_composite(accent)
 
     final = Image.new("RGBA", (SIZE, SIZE), (0, 0, 0, 0))
