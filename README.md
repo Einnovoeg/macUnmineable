@@ -3,7 +3,7 @@
 `macUnmineable` is a native SwiftUI macOS app for Apple Silicon that wraps the
 unMineable mining flow into a wallet-first desktop GUI.
 
-Current source release: `v0.5.2`
+Current source release: `v1.0.0`
 
 The app lets you:
 
@@ -169,6 +169,16 @@ Third-party software remains under its own license terms. See
 - unMineable workflow inspiration and wallet stats model: [unMineable](https://unmineable.com/)
 - Managed miner backend integrations: [XMRig](https://github.com/xmrig/xmrig), [cpuminer-scash](https://github.com/scashnetwork/cpuminer-scash)
 - UI and ecosystem references: [macmineable](https://github.com/2nthony/macmineable), [EasyMiner](https://github.com/shepp31/EasyMiner), [MacMiner](https://xcreate.com/macminer/)
+
+## Known Issues and Future Work
+
+- **GPU Support:** Currently, this launcher primarily supports CPU mining on Apple Silicon. While some GPU backends are referenced, they are not yet fully integrated or verified for all Apple Silicon generations.
+- **Notarization:** The built app bundle is not yet notarized by Apple, which may require users to manually allow it in System Settings.
+- **Accepted Share Validation:** A more robust way to validate accepted shares in real-time within the app is planned.
+
+### Contributions Wanted!
+
+If you encounter any issues or have ideas for improvements (especially around GPU support for Apple Silicon), please feel free to contribute! We welcome pull requests and bug reports from the community.
 
 ## Disclaimer
 
