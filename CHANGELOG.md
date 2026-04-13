@@ -4,6 +4,22 @@ All notable changes to this project are documented in this file.
 
 This project follows Semantic Versioning for release tags.
 
+## [1.0.0] - 2026-04-15
+
+### Added
+- Jumped to version 1.0.0 for first official release.
+- Added copy buttons to wallet address and pool host fields for easier interaction.
+- Added subtle breathing animations to the status pill when mining is active.
+- Added numeric text transitions to hashrate displays for a more polished feel.
+- Enhanced code with detailed documentation comments for all major components and methods.
+
+### Changed
+- Polished the overall GUI layout and user feedback.
+- Ensured absolute removal of PII and machine-specific paths from the repository.
+- Re-verified all third-party license compliance and credits.
+- Applied the MIT License to the project source.
+- Standardized the README and DEPENDENCIES for general use.
+
 ## [0.5.2] - 2026-04-12
 
 ### Changed

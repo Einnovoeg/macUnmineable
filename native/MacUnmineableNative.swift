@@ -9,6 +9,7 @@ import SwiftUI
 
 // MARK: - Domain Models
 
+/// Represents a cryptocurrency coin available for payout on unMineable.
 struct CoinOption: Identifiable, Hashable, Codable {
     let symbol: String
     let name: String
@@ -20,8 +21,9 @@ struct CoinOption: Identifiable, Hashable, Codable {
     }
 }
 
-// Each algorithm describes the unMineable pool endpoint plus the backend-
-// specific algorithm identifiers needed to launch the underlying miner.
+/// Defines the configuration for a mining algorithm.
+/// This includes the unMineable pool endpoint (host/ports) and the specific
+/// flags required by backend miners (XMRig or cpuminer-scash).
 struct AlgorithmConfig: Identifiable, Hashable {
     let id: String
     let label: String
@@ -31,9 +33,8 @@ struct AlgorithmConfig: Identifiable, Hashable {
     let cpuminerAlgo: String?
 }
 
-// Wallet stats come from unMineable's public v5 API. The launcher uses the
-// same address resolver and account endpoints as the website so balance and
-// worker numbers stay consistent with the official stats page.
+/// Root response for unMineable's address lookup API.
+/// This is the first step in fetching wallet stats: resolving a public address to an internal account UUID.
 struct UnmineableAddressLookupResponse: Decodable {
     let data: UnmineableAddressLookupData
 }
@@ -243,8 +244,9 @@ enum AccentPalette: String, CaseIterable, Identifiable {
     }
 }
 
-// DashboardTheme keeps all palette-dependent colors in one place so light/dark
-// mode and alternate accent palettes stay visually coherent across the app.
+/// Centralized theme definition for the mining dashboard.
+/// It manages palette-dependent colors for background, cards, fields, and accents,
+/// ensuring a consistent look across light and dark modes.
 struct DashboardTheme {
     let backgroundTop: Color
     let backgroundBottom: Color
@@ -376,6 +378,9 @@ private func openExternalURL(_ rawValue: String) {
 
 // MARK: - Runtime Model
 
+/// The primary view model for the native macOS application.
+/// It manages the state of the mining process, handles network requests for coin catalogs
+/// and wallet stats, and coordinates the execution of miner binaries.
 @MainActor
 final class NativeAppModel: ObservableObject {
     @Published var coins: [CoinOption] = fallbackCoins
@@ -442,10 +447,7 @@ final class NativeAppModel: ObservableObject {
 
     private let formDefaultsKey = "macunmineable.native.form.v1"
 
-    // App startup restores persisted state, stages the runtime payload under
-    // Application Support, refreshes the live availability text, and then
-    // optionally installs/validates the managed miner set depending on user
-    // preferences.
+    /// Initializes the model, bootstraps the local runtime environment, and restores previous session state.
     init() {
         defaults.register(defaults: [
             prefAutoInstallXMRigKey: true,
@@ -943,6 +945,8 @@ final class NativeAppModel: ObservableObject {
         connection.start(queue: queue)
     }
 
+    /// Starts the mining process using the currently selected options.
+    /// It validates the input, selects the appropriate backend binary, and launches the process.
     func startMining() {
         warningText = ""
         normalizeSelections(showWarning: true)
@@ -1077,6 +1081,7 @@ final class NativeAppModel: ObservableObject {
         }
     }
 
+    /// Terminates the active miner process.
     func stopMining() {
         warningText = ""
         guard let process = minerProcess else {
@@ -1092,6 +1097,10 @@ final class NativeAppModel: ObservableObject {
         }
     }
 
+    /// Executes the installer script for a specific miner backend.
+    /// - Parameters:
+    ///   - target: The miner backend to install/update.
+    ///   - dryRun: If true, only checks for updates without installing.
     func install(target: InstallTarget, dryRun: Bool) {
         warningText = ""
         if isMining {
@@ -1238,6 +1247,8 @@ final class NativeAppModel: ObservableObject {
         validateMiners()
     }
 
+    /// Performs a read-only validation pass on all configured miner binaries.
+    /// It checks for file existence, executability, architecture, and version output.
     func validateMiners() {
         // Validation is intentionally read-only. It captures path, executable
         // status, architecture, and version output without mutating any runtime
@@ -1870,6 +1881,8 @@ final class NativeAppModel: ObservableObject {
         try fileManager.setAttributes([.posixPermissions: NSNumber(value: updated)], ofItemAtPath: path)
     }
 
+    /// Fetches the live coin catalog from the unMineable API.
+    /// - Parameter userInitiated: If true, updates the status text to reflect a manual refresh.
     private func fetchCoins(userInitiated: Bool = false) {
         // Coin discovery is best-effort only. The launcher keeps a safe fallback
         // list locally and replaces it only when the unMineable API returns a
@@ -2020,6 +2033,7 @@ struct PillView: View {
     let text: String
     let running: Bool
     let theme: DashboardTheme
+    @State private var isAnimating = false
 
     var body: some View {
         Text(text)
@@ -2032,6 +2046,23 @@ struct PillView: View {
             .overlay(
                 Capsule().stroke(running ? theme.accentStart.opacity(0.45) : theme.chromeStroke, lineWidth: 1)
             )
+            .opacity(running && isAnimating ? 0.6 : 1.0)
+            .onAppear {
+                if running {
+                    withAnimation(.easeInOut(duration: 1.2).repeatForever(autoreverses: true)) {
+                        isAnimating = true
+                    }
+                }
+            }
+            .onChange(of: running) { _, newValue in
+                if newValue {
+                    withAnimation(.easeInOut(duration: 1.2).repeatForever(autoreverses: true)) {
+                        isAnimating = true
+                    }
+                } else {
+                    isAnimating = false
+                }
+            }
     }
 }
 
@@ -2342,6 +2373,7 @@ struct SessionLine: View {
     let value: String
     let theme: DashboardTheme
     var helpText: String? = nil
+    var copyValue: String? = nil
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 6) {
@@ -2350,6 +2382,21 @@ struct SessionLine: View {
             Text(value)
                 .foregroundStyle(theme.primaryText)
                 .fontWeight(.semibold)
+                .lineLimit(1)
+
+            if let copyValue = copyValue, !copyValue.isEmpty {
+                Button(action: {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(copyValue, forType: .string)
+                }) {
+                    Image(systemName: "doc.on.doc")
+                        .font(.system(size: 11))
+                        .foregroundStyle(theme.accentStart)
+                }
+                .buttonStyle(.plain)
+                .help("Copy to clipboard")
+            }
+
             Spacer(minLength: 0)
         }
         .font(.system(size: 17, weight: .regular, design: .rounded))
@@ -2458,6 +2505,8 @@ struct MetricBlock: View {
             Text(value)
                 .font(.system(size: 30, weight: .bold, design: .rounded))
                 .foregroundStyle(theme.primaryText)
+                .contentTransition(.numericText())
+                .animation(.spring(), value: value)
         }
     }
 }
@@ -3123,14 +3172,14 @@ struct MineDashboardView: View {
                     .padding(.bottom, 14)
 
                     VStack(alignment: .leading, spacing: 5) {
-                        SessionLine(label: "Address", value: model.displayWallet(), theme: theme, helpText: model.walletAddress.isEmpty ? "Wallet address is not set." : model.walletAddress)
+                        SessionLine(label: "Address", value: model.displayWallet(), theme: theme, helpText: model.walletAddress.isEmpty ? "Wallet address is not set." : model.walletAddress, copyValue: model.walletAddress)
                         SessionLine(label: "Coin", value: model.coinSymbol, theme: theme)
                         SessionLine(label: "Algorithm", value: model.selectedAlgorithm?.label ?? "-", theme: theme)
                         SessionLine(label: "Device", value: model.hardware.displayName, theme: theme)
                         SessionLine(label: "Backend", value: model.displayedBackendName, theme: theme)
                         SessionLine(label: "Worker", value: model.displayWorker(), theme: theme)
                         SessionLine(label: "Port", value: String(model.selectedPort), theme: theme)
-                        SessionLine(label: "Pool", value: model.selectedPoolHost, theme: theme, helpText: "Current pool host: \(model.selectedPoolHost)")
+                        SessionLine(label: "Pool", value: model.selectedPoolHost, theme: theme, helpText: "Current pool host: \(model.selectedPoolHost)", copyValue: model.selectedPoolHost)
                     }
                 }
 
@@ -3350,11 +3399,11 @@ struct WalletStatsDashboardView: View {
                             .font(.system(size: 16, weight: .bold, design: .rounded))
                             .foregroundStyle(theme.primaryText)
 
-                        SessionLine(label: "Address", value: model.displayWallet(), theme: theme, helpText: model.walletAddress.isEmpty ? "Wallet address is not set." : model.walletAddress)
+                        SessionLine(label: "Address", value: model.displayWallet(), theme: theme, helpText: model.walletAddress.isEmpty ? "Wallet address is not set." : model.walletAddress, copyValue: model.walletAddress)
                         SessionLine(label: "Coin", value: model.coinSymbol, theme: theme, helpText: "Current payout coin selection.")
                         SessionLine(label: "Network", value: model.walletResolvedNetworkText, theme: theme, helpText: "Network reported by unMineable for the selected wallet and coin.")
                         SessionLine(label: "Algorithm", value: model.selectedAlgorithm?.label ?? "-", theme: theme, helpText: "Current mining algorithm selection from the Mine tab.")
-                        SessionLine(label: "Pool", value: model.selectedPoolHost, theme: theme, helpText: "Pool host for the current algorithm selection.")
+                        SessionLine(label: "Pool", value: model.selectedPoolHost, theme: theme, helpText: "Pool host for the current algorithm selection.", copyValue: model.selectedPoolHost)
                     }
                 }
 
