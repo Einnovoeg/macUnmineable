@@ -1,22 +1,38 @@
+# Local maintainer notes
+AGENTS.md
+
+# macOS system files
 .DS_Store
 .Spotlight-V100
 .Trashes
 
-dist/
+# Build output
+/dist/
 
+# Python cache
 __pycache__/
 *.pyc
 *.pyo
-*.log
 
+# Swift package manager
 .build/
 .swiftpm/
 
+# IDE files
 .idea/
 .vscode/
 
+# Logs
+*.log
+
+# Downloaded miner binaries
 miners/xmrig/xmrig
-miners/cpuminer-scash/*
+miners/cpuminer-scash/minerd
+
+# Keep tracked docs inside miner directories
+!miners/xmrig/README.md
 !miners/cpuminer-scash/README.md
+
+# Unsupported local miner payloads
 miners/uselethminer/
-miners/srbminer/SRBMiner-MULTI
+miners/srbminer/

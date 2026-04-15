@@ -8,6 +8,8 @@ import SwiftUI
 // SwiftUI views all live in one file and are separated with MARK sections.
 
 // MARK: - Domain Models
+// These models define the data structures for coin selection, algorithm
+// configuration, and unMineable API responses.
 
 struct CoinOption: Identifiable, Hashable, Codable {
     let symbol: String
@@ -375,7 +377,10 @@ private func openExternalURL(_ rawValue: String) {
 }
 
 // MARK: - Runtime Model
-
+// The NativeAppModel serves as the single source of truth for the application state.
+// It manages the mining lifecycle, interacts with the filesystem for runtime
+// binaries, handles network requests to the unMineable API, and persists
+// user preferences and form state to UserDefaults.
 @MainActor
 final class NativeAppModel: ObservableObject {
     @Published var coins: [CoinOption] = fallbackCoins
@@ -943,6 +948,8 @@ final class NativeAppModel: ObservableObject {
         connection.start(queue: queue)
     }
 
+    // Starts the mining process by selecting the best available backend for the chosen
+    // algorithm, constructing the CLI arguments, and spawning a separate native Process.
     func startMining() {
         warningText = ""
         normalizeSelections(showWarning: true)
@@ -1092,6 +1099,8 @@ final class NativeAppModel: ObservableObject {
         }
     }
 
+    // Invokes a bundled bash script to download and install a specific miner
+    // binary. The process captures real-time stdout/stderr to update the GUI.
     func install(target: InstallTarget, dryRun: Bool) {
         warningText = ""
         if isMining {

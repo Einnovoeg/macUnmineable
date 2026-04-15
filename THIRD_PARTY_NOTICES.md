@@ -1,113 +1,85 @@
 # Third-Party Notices
 
-This project integrates with or references third-party software and services.
-Original authors retain all rights to their respective work.
+This document provides attribution and license information for third-party
+software integrated into or referenced by `macUnmineable`.
 
-## Included integration targets
+## Integrated Software
 
 ### XMRig
 
 - Project: [xmrig/xmrig](https://github.com/xmrig/xmrig)
 - Upstream site: [xmrig.com](https://xmrig.com/)
 - License: `GPL-3.0-or-later`
-- Current upstream license metadata checked on **April 7, 2026**
+- License metadata verified on **April 12, 2026**
 - Upstream copyright notices from `src/version.h`:
   - `Copyright (c) 2018-2025 SChernykh`
   - `Copyright (c) 2016-2025 XMRig`
 
 Compliance notes:
 
-- The source repository for `macUnmineable` does **not** commit a prebuilt
-  XMRig binary.
-- The installer script downloads the official XMRig release from upstream when
-  requested.
-- The local app builder can embed the downloaded XMRig payload into a private
-  or redistributed `.app` bundle. If you redistribute such a bundle, you must
-  satisfy XMRig's GPL requirements for that copied binary.
+- This repository does **not** commit a prebuilt XMRig binary.
+- The installer script downloads the official XMRig release from upstream.
+- Local app builds may embed the downloaded XMRig payload into a redistributed
+  `.app` bundle.
+- If you redistribute a build that includes XMRig, you are responsible for
+  satisfying GPL-3.0 obligations, including source access for that copied binary.
 
 ### cpuminer-scash
 
 - Project: [scashnetwork/cpuminer-scash](https://github.com/scashnetwork/cpuminer-scash)
 - Upstream site: [scashnetwork.org](https://scashnetwork.org)
-- License source in upstream repository: `COPYING` contains `GNU General Public License Version 2`
-- Current upstream release metadata checked on **April 7, 2026**
+- Upstream status: archived on GitHub as of **April 12, 2026**
+- License source: upstream `LICENSE` states `GNU Public License version 2` and upstream `COPYING` contains the full `GNU General Public License Version 2` text
+- GitHub repository license metadata currently reports `NOASSERTION`, so this project relies on the upstream license files themselves for notice purposes
+- License metadata verified on **April 12, 2026**
 
 Compliance notes:
 
-- The source repository for `macUnmineable` does **not** commit a prebuilt
-  cpuminer-scash binary.
+- This repository does **not** commit a prebuilt cpuminer-scash binary.
 - The installer script downloads the official upstream release and verifies the
-  tarball against the upstream `SHA256SUMS` manifest before installing it.
-- The local app builder can embed the downloaded cpuminer-scash payload into a
-  private or redistributed `.app` bundle. If you redistribute such a bundle,
-  you must satisfy the GPL terms that apply to that copied binary.
+  tarball against the upstream `SHA256SUMS` manifest before installation.
+- Local app builds may embed the downloaded cpuminer-scash payload into a
+  redistributed `.app` bundle.
+- If you redistribute a build that includes cpuminer-scash, you are responsible
+  for satisfying the applicable GPL obligations, including source access for
+  that copied binary.
 
-## Project license boundary
-
-- `macUnmineable`'s own source code and original project files are licensed
-  under the MIT License in this repository.
-- Third-party miners remain under their original upstream licenses and are not
-  relicensed by this project.
-- Public GitHub releases from this repository are source-only. If you create or
-  redistribute a binary app bundle that includes third-party miner payloads,
-  you are responsible for including the notices, source access, and any other
-  obligations required by those upstream licenses.
-
-## Third-party service
+## Third-Party Service
 
 ### unMineable
 
 - Site: [unMineable](https://unmineable.com/)
-- Purpose in this project: pool endpoint, payout workflow, coin catalog, and
-  wallet stats source
+- Purpose in this project: pool endpoint, payout workflow, coin catalog, and wallet stats source
 
 Compliance notes:
 
-- `macUnmineable` is an independent client application and is not affiliated
-  with, endorsed by, or sponsored by unMineable.
+- `macUnmineable` is an independent client application.
+- It is not affiliated with, endorsed by, or sponsored by unMineable.
 - `unMineable` and related marks belong to their respective owners.
 
-## Reference projects
+## Referenced Projects
 
 These projects informed compatibility research, UI expectations, or ecosystem
 review. Their code is **not** redistributed by this repository.
 
-### EasyMiner
+| Project | License / Metadata | Purpose |
+|---------|--------------------|---------|
+| [shepp31/EasyMiner](https://github.com/shepp31/EasyMiner) | Apache-2.0 | UI/UX reference |
+| [2nthony/macmineable](https://github.com/2nthony/macmineable) | GPL-3.0 | UI/UX reference |
+| [xcreate.com/macminer](https://xcreate.com/macminer/) | Site reference | GUI layout reference |
+| [doktor83/SRBMiner-Multi](https://github.com/doktor83/SRBMiner-Multi) | Compatibility review only | Not integrated |
+| [Chainfire/UselethMiner](https://github.com/Chainfire/UselethMiner) | Compatibility review only | Not integrated |
+| [nanopool/nanominer](https://github.com/nanopool/nanominer) | Compatibility review only | Not integrated |
+| [bzminer/bzminer](https://github.com/bzminer/bzminer) | Compatibility review only | Not integrated |
+| [OneZeroMiner/onezerominer](https://github.com/OneZeroMiner/onezerominer) | Compatibility review only | Not integrated |
 
-- Project: [shepp31/EasyMiner](https://github.com/shepp31/EasyMiner)
-- License metadata checked on **April 7, 2026**: `Apache-2.0`
+## Project License Boundary
 
-### macmineable
-
-- Project: [2nthony/macmineable](https://github.com/2nthony/macmineable)
-- License metadata checked on **April 7, 2026**: `GPL-3.0`
-
-### MacMiner
-
-- Site: [xcreate.com/macminer](https://xcreate.com/macminer/)
-- Used as a GUI layout and UX reference only
-
-### SRBMiner-Multi
-
-- Project: [doktor83/SRBMiner-Multi](https://github.com/doktor83/SRBMiner-Multi)
-- Used for compatibility review only; not integrated into the launcher
-
-### UselethMiner
-
-- Project: [Chainfire/UselethMiner](https://github.com/Chainfire/UselethMiner)
-- Used for compatibility review only; not integrated into the launcher
-
-### nanominer
-
-- Project: [nanopool/nanominer](https://github.com/nanopool/nanominer)
-- Used only for compatibility review of Apple Silicon/macOS support
-
-### BzMiner
-
-- Project: [bzminer/bzminer](https://github.com/bzminer/bzminer)
-- Used only for compatibility review of Apple Silicon/macOS support
-
-### OneZeroMiner
-
-- Project: [OneZeroMiner/onezerominer](https://github.com/OneZeroMiner/onezerominer)
-- Used only for compatibility review of Apple Silicon/macOS support
+- `macUnmineable` source code and original project files are licensed under the
+  MIT License in this repository.
+- Third-party miners remain under their original upstream licenses and are not
+  relicensed by this project.
+- Public GitHub releases from this repository are source-only.
+- If you create or redistribute a binary app bundle that includes third-party
+  miner payloads, you are responsible for the notice, source-access, and any
+  other obligations required by those upstream licenses.

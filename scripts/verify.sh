@@ -51,6 +51,29 @@ run_dry "rx.unmineable.com" "rx"
 run_dry "ghostrider.unmineable.com" "gr"
 run_dry "kp.unmineable.com" "kawpow"
 
+echo "[verify] Bounded cpuminer-scash startup via rx.unmineable.com"
+# cpuminer-scash does not expose a dry-run flag, so use a short-lived bounded
+# startup and verify that it reaches Stratum initialization without relying on
+# an accepted share or an indefinite live session.
+CPUMINER_LOG="${TMP_DIR}/cpuminer-smoke.log"
+"${TEST_CPUMINER}" \
+  --algo=randomx \
+  --url=stratum+tcp://rx.unmineable.com:3333 \
+  --user=BTC:11111111111111111111111111111111.macunmineable \
+  --pass=x \
+  --threads=1 \
+  --retries=0 \
+  --retry-pause=1 \
+  --timeout=5 \
+  --scantime=1 \
+  --no-affinity >"${CPUMINER_LOG}" 2>&1 &
+CPUMINER_PID=$!
+sleep 8
+kill "${CPUMINER_PID}" >/dev/null 2>&1 || true
+wait "${CPUMINER_PID}" >/dev/null 2>&1 || true
+grep -q "Starting Stratum on stratum+tcp://rx.unmineable.com:3333" "${CPUMINER_LOG}"
+grep -q "miner threads started" "${CPUMINER_LOG}"
+
 echo "[verify] Checking built app executable"
 test -x "${APP_BIN}"
 test -x "${ROOT_DIR}/dist/macUnmineable.app/Contents/Resources/runtime/miners/xmrig/xmrig"
