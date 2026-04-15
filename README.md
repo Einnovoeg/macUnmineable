@@ -182,6 +182,16 @@ payloads, you are responsible for satisfying the upstream license obligations.
 - Managed miner integrations: [XMRig](https://github.com/xmrig/xmrig), [cpuminer-scash](https://github.com/scashnetwork/cpuminer-scash)
 - UI and ecosystem references: [macmineable](https://github.com/2nthony/macmineable), [EasyMiner](https://github.com/shepp31/EasyMiner), [MacMiner](https://xcreate.com/macminer/)
 
+## Known Issues and Future Work
+
+- **GPU Support:** Currently, this launcher primarily supports CPU mining on Apple Silicon. While some GPU backends are referenced, they are not yet fully integrated or verified for all Apple Silicon generations.
+- **Notarization:** The built app bundle is not yet notarized by Apple, which may require users to manually allow it in System Settings.
+- **Accepted Share Validation:** A more robust way to validate accepted shares in real-time within the app is planned.
+
+### Contributions Wanted!
+
+If you encounter any issues or have ideas for improvements (especially around GPU support for Apple Silicon), please feel free to contribute! We welcome pull requests and bug reports from the community.
+
 ## Disclaimer
 
 Mining profitability, payout rules, device support, and remote pool behavior can
