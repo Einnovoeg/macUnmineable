@@ -1,38 +1,99 @@
-# Local maintainer notes
+# Local maintainer notes — never publish to GitHub
 AGENTS.md
+sessions*.md
+session*.md
 
 # macOS system files
 .DS_Store
 .Spotlight-V100
 .Trashes
+.AppleDouble
+.LSOverride
+._*
 
 # Build output
 /dist/
+/build/
+*.app
 
-# Python cache
+# Python cache and env
 __pycache__/
 *.pyc
 *.pyo
+*.pyd
+.Python
+*.so
+.venv/
+venv/
+ENV/
+env/
+pip-log.txt
+*.egg-info/
+.eggs/
 
 # Swift package manager
 .build/
 .swiftpm/
+Package.resolved
+*.xcodeproj/
+*.xcworkspace/
+xcuserdata/
+DerivedData/
 
 # IDE files
 .idea/
 .vscode/
+*.swp
+*.swo
+*~
+.project
+.classpath
 
-# Logs
+# Logs and temp
 *.log
+*.tmp
+*.temp
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
-# Downloaded miner binaries
+# Secrets and local config
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+*.cert
+*.p12
+*.mobileprovision
+secrets.json
+config.local.json
+
+# Downloaded miner binaries (source releases stay binary-free)
 miners/xmrig/xmrig
 miners/cpuminer-scash/minerd
+miners/xmrig/*-macos-*.tar.gz
+miners/cpuminer-scash/*.tgz
 
 # Keep tracked docs inside miner directories
 !miners/xmrig/README.md
 !miners/cpuminer-scash/README.md
 
-# Unsupported local miner payloads
+# Unsupported local miner payloads (reviewed but not integrated)
 miners/uselethminer/
 miners/srbminer/
+miners/nanominer/
+miners/bzminer/
+miners/onezerominer/
+
+# Coverage and profiling
+*.gcda
+*.gcno
+*.gcov
+coverage.xml
+*.cover
+
+# OS generated
+Thumbs.db
+ehthumbs.db
+Desktop.ini

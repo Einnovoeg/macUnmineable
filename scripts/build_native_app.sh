@@ -103,15 +103,40 @@ if [[ -f "${ICON_SOURCE_SCRIPT}" ]]; then
   iconutil -c icns "${ICON_WORK_DIR}" -o "${ICON_ICNS}"
 fi
 
-swiftc \
-  -O \
-  -parse-as-library \
-  -framework SwiftUI \
-  -framework AppKit \
-  -framework Foundation \
-  -framework Network \
-  "${SOURCE_FILE}" \
-  -o "${APP_BIN}"
+# Swift 6.4 + macOS 27 SDK breaks SwiftUI macro plugins (State, etc.) via
+# Command Line Tools. Pin to the last known-good SDK (26.5) when available so
+# local builds stay deterministic without requiring full Xcode.
+PREFERRED_SDK="macosx26.5"
+FALLBACK_SDK="macosx"
+SDKROOT_RESOLVED=""
+if xcrun --sdk "$PREFERRED_SDK" --show-sdk-path >/dev/null 2>&1; then
+  SDKROOT_RESOLVED="$(xcrun --sdk "$PREFERRED_SDK" --show-sdk-path)"
+elif xcrun --sdk "$FALLBACK_SDK" --show-sdk-path >/dev/null 2>&1; then
+  SDKROOT_RESOLVED="$(xcrun --sdk "$FALLBACK_SDK" --show-sdk-path)"
+fi
+
+if [[ -n "${SDKROOT_RESOLVED}" ]]; then
+  SDKROOT="${SDKROOT_RESOLVED}" swiftc \
+    -O \
+    -parse-as-library \
+    -sdk "${SDKROOT_RESOLVED}" \
+    -framework SwiftUI \
+    -framework AppKit \
+    -framework Foundation \
+    -framework Network \
+    "${SOURCE_FILE}" \
+    -o "${APP_BIN}"
+else
+  swiftc \
+    -O \
+    -parse-as-library \
+    -framework SwiftUI \
+    -framework AppKit \
+    -framework Foundation \
+    -framework Network \
+    "${SOURCE_FILE}" \
+    -o "${APP_BIN}"
+fi
 
 mkdir -p "${RUNTIME_DIR}/scripts" "${RUNTIME_DIR}/miners"
 # Only bundle runtime-facing scripts. Build/publish helpers stay in the repo.

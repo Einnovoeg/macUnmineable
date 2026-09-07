@@ -19,11 +19,27 @@ trap cleanup EXIT
 cd "${ROOT_DIR}"
 
 echo "[verify] Type-checking SwiftUI app"
-swiftc -parse-as-library -typecheck native/MacUnmineableNative.swift \
-  -framework SwiftUI \
-  -framework AppKit \
-  -framework Foundation \
-  -framework Network
+# Pin type-check to the same SDK used for builds (see build_native_app.sh) so
+# the SwiftUI macro plugin resolves correctly on CLT-only hosts.
+VERIFY_SDKROOT=""
+if xcrun --sdk macosx26.5 --show-sdk-path >/dev/null 2>&1; then
+  VERIFY_SDKROOT="$(xcrun --sdk macosx26.5 --show-sdk-path)"
+elif xcrun --sdk macosx --show-sdk-path >/dev/null 2>&1; then
+  VERIFY_SDKROOT="$(xcrun --sdk macosx --show-sdk-path)"
+fi
+if [[ -n "${VERIFY_SDKROOT}" ]]; then
+  SDKROOT="${VERIFY_SDKROOT}" swiftc -sdk "${VERIFY_SDKROOT}" -parse-as-library -typecheck native/MacUnmineableNative.swift \
+    -framework SwiftUI \
+    -framework AppKit \
+    -framework Foundation \
+    -framework Network
+else
+  swiftc -parse-as-library -typecheck native/MacUnmineableNative.swift \
+    -framework SwiftUI \
+    -framework AppKit \
+    -framework Foundation \
+    -framework Network
+fi
 
 echo "[verify] Building app bundle with embedded managed miners"
 DOWNLOAD_MANAGED_MINERS=1 EMBED_MANAGED_MINERS=1 ./scripts/build_native_app.sh
